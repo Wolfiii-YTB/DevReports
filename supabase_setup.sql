@@ -32,6 +32,15 @@ alter table public.profiles add column if not exists roles text[] not null defau
 alter table public.reports add column if not exists author_roles text[] not null default '{}'::text[];
 alter table public.reports add column if not exists action_types text[] not null default '{}'::text[];
 
+create table if not exists public.member_warnings (
+  id uuid primary key default gen_random_uuid(),
+  member_id uuid not null references public.profiles(id) on delete cascade,
+  admin_id uuid not null references public.profiles(id),
+  reason text not null,
+  created_at timestamptz not null default now()
+);
+alter table public.member_warnings enable row level security;
+
 -- SECURITY DEFINER évite la récursion RLS quand une policy vérifie le rôle.
 create or replace function public.is_admin()
 returns boolean
@@ -60,6 +69,9 @@ grant execute on function public.admin_delete_user(uuid) to authenticated;
 
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to authenticated;
+drop policy if exists "admin manage warnings" on public.member_warnings;
+create policy "admin manage warnings" on public.member_warnings for all to authenticated
+using ((select public.is_admin())) with check ((select public.is_admin()));
 
 create or replace function public.is_active_member()
 returns boolean language sql stable security definer set search_path = '' as $$
