@@ -5,6 +5,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null default 'Membre',
   role text not null default 'developer' check (role in ('developer','admin')),
+  roles text[] not null default array['developer']::text[],
   status text not null default 'active' check (status in ('pending','active','rejected')),
   created_at timestamptz not null default now()
 );
@@ -19,12 +20,17 @@ create table if not exists public.reports (
   work text not null,
   issues text,
   next_steps text,
+  author_roles text[] not null default '{}'::text[],
+  action_types text[] not null default '{}'::text[],
   created_at timestamptz not null default now()
 );
 
 alter table public.profiles enable row level security;
 alter table public.reports enable row level security;
 alter table public.profiles add column if not exists status text not null default 'active' check (status in ('pending','active','rejected'));
+alter table public.profiles add column if not exists roles text[] not null default array['developer']::text[];
+alter table public.reports add column if not exists author_roles text[] not null default '{}'::text[];
+alter table public.reports add column if not exists action_types text[] not null default '{}'::text[];
 
 -- SECURITY DEFINER évite la récursion RLS quand une policy vérifie le rôle.
 create or replace function public.is_admin()
