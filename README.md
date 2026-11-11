@@ -20,13 +20,13 @@ Le site utilise Supabase pour l'authentification et la base de données. Il ne f
 3. Ouvrez **Project Settings > API** et copiez :
    - Project URL
    - la clé publique `anon` / `publishable` (jamais la clé `service_role`).
-4. Dans `index.html`, remplacez :
-   - `sb_publishable_iUAfyeW_iCtfHi6cVpOQ3g_qM51wqyO`
-   - `sb_publishable_iUAfyeW_iCtfHi6cVpOQ3g_qM51wqyO`
+4. Dans `index.html`, remplacez `COLLEZ_ICI_URL_SUPABASE` et `COLLEZ_ICI_CLE_PUBLIQUE_SUPABASE` par l'URL du projet et sa clé publique `anon`/`publishable`. Cette clé publique est prévue pour le navigateur et reste protégée par les règles RLS. Ne mettez jamais la clé `service_role` dans le site.
 5. Hébergez le dossier sur Netlify, GitHub Pages (si votre configuration autorise le chargement de scripts externes) ou un hébergeur statique.
 6. Dans Supabase > Authentication > URL Configuration, renseignez l'URL de votre site.
 7. Créez votre compte sur le site.
 8. Dans Supabase > SQL Editor, exécutez la requête de promotion admin située à la fin de `supabase_setup.sql`, après avoir remplacé l'adresse e-mail.
+
+Si vous avez déjà exécuté une ancienne version du SQL, relancez le script complet mis à jour pour remplacer les policies et éviter la récursion RLS.
 
 ## Gestion des accès
 - Les inscriptions créent uniquement des comptes `developer`.

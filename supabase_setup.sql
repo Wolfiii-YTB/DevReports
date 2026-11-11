@@ -1,7 +1,5 @@
 -- DEVREPORTS — Installation Supabase
--- À exécuter dans Supabase > SQL Editor.
--- Les nouveaux comptes deviennent développeurs par défaut.
--- Pour promouvoir un compte administrateur, utilisez la requête en bas.
+-- À exécuter dans Supabase > SQL Editor. Relançable sans recréer les tables.
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -26,7 +24,23 @@ create table if not exists public.reports (
 alter table public.profiles enable row level security;
 alter table public.reports enable row level security;
 
--- Crée automatiquement le profil à l'inscription.
+-- SECURITY DEFINER évite la récursion RLS quand une policy vérifie le rôle.
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = (select auth.uid()) and role = 'admin'
+  );
+$$;
+
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to authenticated;
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -35,81 +49,47 @@ set search_path = ''
 as $$
 begin
   insert into public.profiles (id, display_name, role)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data ->> 'display_name', 'Membre'),
-    'developer'
-  );
+  values (new.id, coalesce(new.raw_user_meta_data ->> 'display_name', 'Membre'), 'developer');
   return new;
 end;
 $$;
 
 drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-after insert on auth.users
+create trigger on_auth_user_created after insert on auth.users
 for each row execute procedure public.handle_new_user();
 
--- Un utilisateur connecté peut lire son profil.
+-- Répare aussi les profils absents si des comptes existaient avant le script.
+insert into public.profiles (id, display_name, role)
+select id, coalesce(raw_user_meta_data ->> 'display_name', 'Membre'), 'developer'
+from auth.users
+on conflict (id) do nothing;
+
+drop policy if exists "profile read self" on public.profiles;
+drop policy if exists "admin read all profiles" on public.profiles;
+drop policy if exists "read own reports or admin all" on public.reports;
+drop policy if exists "developers insert own reports" on public.reports;
+drop policy if exists "developers update own reports or admin" on public.reports;
+drop policy if exists "admin delete reports" on public.reports;
+
 create policy "profile read self" on public.profiles
-for select to authenticated
-using (id = (select auth.uid()));
-
--- Les développeurs ne peuvent modifier ni consulter le rôle d'autres personnes.
--- Les administrateurs peuvent lire tous les profils (utile pour l'administration).
+for select to authenticated using (id = (select auth.uid()));
 create policy "admin read all profiles" on public.profiles
-for select to authenticated
-using (
-  exists (
-    select 1 from public.profiles p
-    where p.id = (select auth.uid()) and p.role = 'admin'
-  )
-);
-
--- Rapports : développeur = ses propres rapports ; admin = tous les rapports.
+for select to authenticated using ((select public.is_admin()));
 create policy "read own reports or admin all" on public.reports
-for select to authenticated
-using (
-  user_id = (select auth.uid())
-  or exists (
-    select 1 from public.profiles p
-    where p.id = (select auth.uid()) and p.role = 'admin'
-  )
-);
-
+for select to authenticated using (user_id = (select auth.uid()) or (select public.is_admin()));
 create policy "developers insert own reports" on public.reports
-for insert to authenticated
-with check (user_id = (select auth.uid()));
-
+for insert to authenticated with check (user_id = (select auth.uid()));
 create policy "developers update own reports or admin" on public.reports
 for update to authenticated
-using (
-  user_id = (select auth.uid())
-  or exists (
-    select 1 from public.profiles p
-    where p.id = (select auth.uid()) and p.role = 'admin'
-  )
-)
-with check (
-  user_id = (select auth.uid())
-  or exists (
-    select 1 from public.profiles p
-    where p.id = (select auth.uid()) and p.role = 'admin'
-  )
-);
-
+using (user_id = (select auth.uid()) or (select public.is_admin()))
+with check (user_id = (select auth.uid()) or (select public.is_admin()));
 create policy "admin delete reports" on public.reports
-for delete to authenticated
-using (
-  exists (
-    select 1 from public.profiles p
-    where p.id = (select auth.uid()) and p.role = 'admin'
-  )
-);
+for delete to authenticated using ((select public.is_admin()));
 
--- IMPORTANT : créez d'abord votre compte depuis le site, puis remplacez l'adresse
--- ci-dessous par votre adresse et exécutez cette requête pour devenir administrateur.
+-- IMPORTANT : créez d'abord votre compte, puis remplacez l'adresse ci-dessous
+-- et exécutez cette requête pour attribuer le rôle administrateur.
 -- update public.profiles
 -- set role = 'admin'
 -- where id = (select id from auth.users where email = 'VOTRE-EMAIL@EXEMPLE.FR');
 
--- Dans Supabase > Authentication > URL Configuration, ajoutez l'URL de votre site.
+-- Dans Supabase > Authentication > URL Configuration, ajoutez l'URL du site.

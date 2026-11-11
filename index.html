@@ -7,15 +7,15 @@
   <meta name="description" content="Plateforme interne de suivi des rapports de développement de jeux vidéo.">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root{--bg:#0b1020;--panel:#121a2d;--panel2:#172238;--line:#273650;--text:#edf3ff;--muted:#91a2bd;--accent:#78a9ff;--green:#65d6a4;--red:#ff7d89;--yellow:#f3c969}
+    :root{color-scheme:dark;--bg:#090e19;--panel:#111a2b;--panel2:#172238;--line:#283751;--text:#edf3ff;--muted:#91a2bd;--accent:#8fb5ff;--green:#65d6a4;--red:#ff7d89;--yellow:#f3c969;--radius:18px}
     *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 20% 0%,#182746 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
     button,input,textarea,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
-    .wrap{max-width:1180px;margin:auto;padding:26px 22px 60px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:34px}
+    .wrap{max-width:1240px;margin:auto;padding:26px 28px 60px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:34px;padding-bottom:18px;border-bottom:1px solid #ffffff0e}
     .brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.2px}.mark{width:39px;height:39px;border-radius:12px;background:linear-gradient(135deg,#78a9ff,#8c7bff);display:grid;place-items:center;color:#081020;font-weight:900;font-size:19px;box-shadow:0 8px 30px #527fe344}
     .brand small{display:block;color:var(--muted);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase}
     .topright{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}.pill{border:1px solid var(--line);background:#111a2b;border-radius:999px;padding:7px 11px}
-    .hero{margin:26px 0 24px}.eyebrow{color:var(--accent);font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:800}.hero h1{font-size:clamp(28px,4vw,42px);line-height:1.12;margin:8px 0}.hero p{color:var(--muted);max-width:680px;margin:0}
-    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.card{background:linear-gradient(180deg,#151f34,#111a2b);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 18px 55px #0002}
+    .hero{margin:30px 0 26px}.eyebrow{color:var(--accent);font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:800}.hero h1{font-size:clamp(30px,4.5vw,48px);line-height:1.08;letter-spacing:-1.2px;margin:9px 0 12px}.hero p{color:var(--muted);max-width:680px;margin:0}
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;align-items:start}.card{background:linear-gradient(155deg,#151f34,#101827);border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:0 18px 55px #0002}
     h2{font-size:18px;margin:0 0 5px}.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
     label{display:block;color:#bdcbe0;font-size:12px;font-weight:700;margin:13px 0 6px}
     input,textarea,select{width:100%;background:#0c1424;border:1px solid #2b3a55;color:var(--text);border-radius:10px;padding:11px 12px;outline:none}
@@ -24,12 +24,14 @@
     .actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}.muted{color:var(--muted)}.notice{border:1px solid #3b4d6b;background:#14223a;padding:12px 14px;border-radius:11px;color:#b9c9e3;font-size:12px;margin-top:15px}
     .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.stat{background:#0e1728;border:1px solid var(--line);border-radius:12px;padding:13px}.stat b{display:block;font-size:24px}.stat span{font-size:11px;color:var(--muted)}
     .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:22px 0 13px;flex-wrap:wrap}.toolbar h2{margin:0}.toolbar input{max-width:260px}
-    .report{border:1px solid var(--line);background:#101a2c;border-radius:13px;padding:16px;margin-top:10px}.reporthead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.report h3{margin:0 0 5px;font-size:15px}.meta{font-size:11px;color:var(--muted)}.tag{font-size:10px;border-radius:99px;padding:4px 8px;background:#1d3556;color:#b9d4ff;white-space:nowrap}.reportbody{white-space:pre-wrap;color:#c4d0e2;font-size:13px;margin:13px 0 0}
+    .report{border:1px solid var(--line);background:#101a2c;border-radius:13px;padding:18px;margin-top:10px}.reporthead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.report h3{margin:0 0 5px;font-size:15px}.meta{font-size:11px;color:var(--muted)}.tag{font-size:10px;border-radius:99px;padding:4px 8px;background:#1d3556;color:#b9d4ff;white-space:nowrap}.reportbody{white-space:pre-wrap;color:#c4d0e2;font-size:13px;margin:13px 0 0;overflow-wrap:anywhere}
+    .config-banner{border:1px solid #806b35;background:#282313;color:#f4d995;padding:14px 16px;border-radius:12px;margin:0 0 18px;font-size:13px}.config-banner strong{display:block;margin-bottom:3px}
     .empty{border:1px dashed #34445f;border-radius:13px;padding:25px;text-align:center;color:var(--muted);margin-top:12px}
     .toast{position:fixed;right:20px;bottom:20px;max-width:360px;background:#172740;border:1px solid #3b5578;border-radius:12px;padding:13px 16px;box-shadow:0 15px 45px #0008;z-index:5}
     .footer{color:#687b98;text-align:center;font-size:11px;margin-top:38px}
-    @media(max-width:800px){.grid{grid-template-columns:1fr}.top{align-items:flex-start}.topright{flex-wrap:wrap;justify-content:flex-end}.wrap{padding:18px 14px 45px}}
-    @media(max-width:480px){.row{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.reporthead{display:block}.tag{display:inline-block;margin-top:8px}}
+    @media(max-width:800px){.grid{grid-template-columns:1fr}.top{align-items:center}.topright{flex-wrap:wrap;justify-content:flex-end}.wrap{padding:18px 18px 45px}}
+    @media(max-width:520px){.wrap{padding:14px 13px 34px}.top{margin-bottom:24px;padding-bottom:14px}.brand{font-size:14px;gap:9px}.mark{width:35px;height:35px}.topright{gap:6px}.pill{font-size:11px;padding:6px 8px}.hero{margin:23px 0 20px}.hero h1{letter-spacing:-.7px}.card{padding:18px;border-radius:15px}.row{grid-template-columns:1fr;gap:0}.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.stat{padding:10px 8px}.stat b{font-size:20px}.stat span{font-size:10px}.toolbar{align-items:stretch}.toolbar input{max-width:none}.reporthead{display:block}.tag{display:inline-block;margin-top:8px}.actions .btn{flex:1}.toast{left:12px;right:12px;bottom:12px;max-width:none}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
   </style>
 </head>
 <body>
@@ -40,6 +42,7 @@
   </header>
 
   <section id="authView">
+    <div class="config-banner hidden" id="configBanner" role="status"><strong>Connexion à configurer</strong>Ajoutez l’URL de votre projet Supabase et sa clé publique dans index.html pour activer les comptes et les rapports.</div>
     <div class="hero"><div class="eyebrow">Studio workspace</div><h1>Le développement,<br>en toute transparence.</h1><p>Centralisez les rapports de votre équipe : avancement, scripts, construction, tests et incidents. Les administrateurs disposent d'une vue globale sur les publications.</p></div>
     <div class="grid">
       <div class="card">
@@ -104,7 +107,7 @@
 
   const $ = id => document.getElementById(id);
   function toast(msg, bad=false){ const el=$("toast"); el.textContent=msg; el.style.borderColor=bad?"#8d4654":"#3b5578"; el.classList.remove("hidden"); setTimeout(()=>el.classList.add("hidden"),4200); }
-  function configured(){ return SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("COLLEZ"); }
+  function configured(){ return SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("COLLEZ") && SUPABASE_ANON_KEY.length>20 && !SUPABASE_ANON_KEY.includes("COLLEZ"); }
   function setView(logged){ $("authView").classList.toggle("hidden",logged); $("appView").classList.toggle("hidden",!logged); $("logoutBtn").classList.toggle("hidden",!logged); }
   function escapeHtml(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
   function dateLabel(s){return new Date(s).toLocaleString("fr-FR",{dateStyle:"medium",timeStyle:"short"});}
@@ -145,10 +148,9 @@
   }
   async function init(){
     if(!configured()){toast("Configuration nécessaire : ajoutez l'URL et la clé publique Supabase dans index.html.",true);return;}
+    if(!window.supabase?.createClient){toast("La bibliothèque Supabase n’a pas pu être chargée. Vérifiez votre connexion Internet.",true);return;}
     db=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-    const {data:{session}}=await db.auth.getSession();
-    if(session) {try{await enterApp(session.user)}catch(e){toast("Profil introuvable. Vérifiez le script SQL d'installation.",true)}}
-    db.auth.onAuthStateChange(async(_event,session)=>{if(session){try{await enterApp(session.user)}catch(e){toast(e.message,true)}}else{currentUser=null;currentProfile=null;setView(false);}});
+    db.auth.onAuthStateChange((_event,session)=>{setTimeout(async()=>{if(session){try{await enterApp(session.user)}catch(e){console.error(e);currentUser=null;currentProfile=null;setView(false);toast("Impossible de charger le profil ou les rapports. Vérifiez le SQL et les règles d’accès.",true)}}else{currentUser=null;currentProfile=null;allReports=[];setView(false);}},0);});
   }
   $("loginBtn").onclick=async()=>{
     if(!db)return toast("Configurez d'abord Supabase.",true);
@@ -178,6 +180,7 @@
     if(error)toast(error.message,true);else{toast("Rapport supprimé.");await refreshReports();}
   }
   $("searchReports").addEventListener("input",renderReports);
+  if(!configured())$("configBanner").classList.remove("hidden");
   init();
 </script>
 </body>
