@@ -117,8 +117,14 @@
     if(error) throw error; currentProfile=data;
   }
   async function refreshReports(){
-    let query=db.from("reports").select("id,user_id,project,category,version,title,work,issues,next_steps,created_at,profiles(display_name)").order("created_at",{ascending:false});
-    const {data,error}=await query; if(error) throw error; allReports=data||[]; renderReports();
+    const {data,error}=await db.from("reports").select("id,user_id,project,category,version,title,work,issues,next_steps,created_at").order("created_at",{ascending:false});
+    if(error) throw error;
+    const {data:profiles,error:profileError}=await db.from("profiles").select("id,display_name");
+    if(profileError) console.warn("Les noms des membres ne sont pas accessibles.",profileError);
+    const names=new Map((profiles||[]).map(p=>[p.id,p.display_name]));
+    if(currentUser&&currentProfile)names.set(currentUser.id,currentProfile.display_name);
+    allReports=(data||[]).map(r=>({...r,profiles:{display_name:names.get(r.user_id)||"Membre"}}));
+    renderReports();
   }
   function renderReports(){
     const admin=currentProfile?.role==="admin";
@@ -150,7 +156,7 @@
     if(!configured()){toast("Configuration nécessaire : ajoutez l'URL et la clé publique Supabase dans index.html.",true);return;}
     if(!window.supabase?.createClient){toast("La bibliothèque Supabase n’a pas pu être chargée. Vérifiez votre connexion Internet.",true);return;}
     db=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-    db.auth.onAuthStateChange((_event,session)=>{setTimeout(async()=>{if(session){try{await enterApp(session.user)}catch(e){console.error(e);currentUser=null;currentProfile=null;setView(false);toast("Impossible de charger le profil ou les rapports. Vérifiez le SQL et les règles d’accès.",true)}}else{currentUser=null;currentProfile=null;allReports=[];setView(false);}},0);});
+    db.auth.onAuthStateChange((_event,session)=>{setTimeout(async()=>{if(session){try{await enterApp(session.user)}catch(e){console.error(e);currentUser=null;currentProfile=null;setView(false);$("rolePill").textContent="Espace sécurisé";toast("Chargement impossible : "+(e.message||"erreur Supabase"),true)}}else{currentUser=null;currentProfile=null;allReports=[];setView(false);$("rolePill").textContent="Espace sécurisé";}},0);});
   }
   $("loginBtn").onclick=async()=>{
     if(!db)return toast("Configurez d'abord Supabase.",true);

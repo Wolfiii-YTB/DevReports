@@ -79,6 +79,7 @@ begin
   end if;
 end;
 $$;
+notify pgrst, 'reload schema';
 
 drop policy if exists "profile read self" on public.profiles;
 drop policy if exists "admin read all profiles" on public.profiles;
