@@ -64,6 +64,22 @@ select id, coalesce(raw_user_meta_data ->> 'display_name', 'Membre'), 'developer
 from auth.users
 on conflict (id) do nothing;
 
+-- Les rapports embarquent profiles(display_name) dans leurs requêtes PostgREST.
+-- Cette FK explicite permet à Supabase de résoudre cette relation.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.reports'::regclass
+      and conname = 'reports_user_profile_fkey'
+  ) then
+    alter table public.reports
+      add constraint reports_user_profile_fkey
+      foreign key (user_id) references public.profiles(id) on delete cascade;
+  end if;
+end;
+$$;
+
 drop policy if exists "profile read self" on public.profiles;
 drop policy if exists "admin read all profiles" on public.profiles;
 drop policy if exists "read own reports or admin all" on public.reports;
