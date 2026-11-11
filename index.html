@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DevReports — Rapports de développement</title>
+  <meta name="description" content="Plateforme interne de suivi des rapports de développement de jeux vidéo.">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{--bg:#0b1020;--panel:#121a2d;--panel2:#172238;--line:#273650;--text:#edf3ff;--muted:#91a2bd;--accent:#78a9ff;--green:#65d6a4;--red:#ff7d89;--yellow:#f3c969}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 20% 0%,#182746 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+    button,input,textarea,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
+    .wrap{max-width:1180px;margin:auto;padding:26px 22px 60px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:34px}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.2px}.mark{width:39px;height:39px;border-radius:12px;background:linear-gradient(135deg,#78a9ff,#8c7bff);display:grid;place-items:center;color:#081020;font-weight:900;font-size:19px;box-shadow:0 8px 30px #527fe344}
+    .brand small{display:block;color:var(--muted);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase}
+    .topright{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}.pill{border:1px solid var(--line);background:#111a2b;border-radius:999px;padding:7px 11px}
+    .hero{margin:26px 0 24px}.eyebrow{color:var(--accent);font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:800}.hero h1{font-size:clamp(28px,4vw,42px);line-height:1.12;margin:8px 0}.hero p{color:var(--muted);max-width:680px;margin:0}
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}.card{background:linear-gradient(180deg,#151f34,#111a2b);border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 18px 55px #0002}
+    h2{font-size:18px;margin:0 0 5px}.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
+    label{display:block;color:#bdcbe0;font-size:12px;font-weight:700;margin:13px 0 6px}
+    input,textarea,select{width:100%;background:#0c1424;border:1px solid #2b3a55;color:var(--text);border-radius:10px;padding:11px 12px;outline:none}
+    input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px #78a9ff20}textarea{min-height:115px;resize:vertical}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.btn{border:0;border-radius:10px;padding:11px 15px;font-weight:800;background:linear-gradient(135deg,#78a9ff,#8c8aff);color:#091326}.btn.secondary{background:#1b2941;color:#dce8ff;border:1px solid #344866}.btn.danger{background:#3a202b;color:#ffb6bd;border:1px solid #63323e}.btn:disabled{opacity:.55;cursor:not-allowed}
+    .actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}.muted{color:var(--muted)}.notice{border:1px solid #3b4d6b;background:#14223a;padding:12px 14px;border-radius:11px;color:#b9c9e3;font-size:12px;margin-top:15px}
+    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.stat{background:#0e1728;border:1px solid var(--line);border-radius:12px;padding:13px}.stat b{display:block;font-size:24px}.stat span{font-size:11px;color:var(--muted)}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:22px 0 13px;flex-wrap:wrap}.toolbar h2{margin:0}.toolbar input{max-width:260px}
+    .report{border:1px solid var(--line);background:#101a2c;border-radius:13px;padding:16px;margin-top:10px}.reporthead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.report h3{margin:0 0 5px;font-size:15px}.meta{font-size:11px;color:var(--muted)}.tag{font-size:10px;border-radius:99px;padding:4px 8px;background:#1d3556;color:#b9d4ff;white-space:nowrap}.reportbody{white-space:pre-wrap;color:#c4d0e2;font-size:13px;margin:13px 0 0}
+    .empty{border:1px dashed #34445f;border-radius:13px;padding:25px;text-align:center;color:var(--muted);margin-top:12px}
+    .toast{position:fixed;right:20px;bottom:20px;max-width:360px;background:#172740;border:1px solid #3b5578;border-radius:12px;padding:13px 16px;box-shadow:0 15px 45px #0008;z-index:5}
+    .footer{color:#687b98;text-align:center;font-size:11px;margin-top:38px}
+    @media(max-width:800px){.grid{grid-template-columns:1fr}.top{align-items:flex-start}.topright{flex-wrap:wrap;justify-content:flex-end}.wrap{padding:18px 14px 45px}}
+    @media(max-width:480px){.row{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.reporthead{display:block}.tag{display:inline-block;margin-top:8px}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><div class="mark">D</div><div>DevReports<small>GAME DEVELOPMENT HUB</small></div></div>
+    <div class="topright"><span class="pill" id="rolePill">Espace sécurisé</span><button class="btn secondary hidden" id="logoutBtn">Déconnexion</button></div>
+  </header>
+
+  <section id="authView">
+    <div class="hero"><div class="eyebrow">Studio workspace</div><h1>Le développement,<br>en toute transparence.</h1><p>Centralisez les rapports de votre équipe : avancement, scripts, construction, tests et incidents. Les administrateurs disposent d'une vue globale sur les publications.</p></div>
+    <div class="grid">
+      <div class="card">
+        <h2>Connexion</h2><p class="sub">Accédez à votre espace de travail.</p>
+        <label for="loginEmail">Adresse e-mail</label><input id="loginEmail" type="email" placeholder="nom@studio.com" autocomplete="email">
+        <label for="loginPassword">Mot de passe</label><input id="loginPassword" type="password" placeholder="Votre mot de passe" autocomplete="current-password">
+        <div class="actions"><button class="btn" id="loginBtn">Se connecter</button></div>
+        <div class="notice">Les comptes sont gérés par le service d'authentification. Le rôle administrateur est attribué depuis la base de données, jamais depuis le formulaire public.</div>
+      </div>
+      <div class="card">
+        <h2>Créer un compte développeur</h2><p class="sub">Inscrivez-vous avec l'adresse autorisée par votre studio.</p>
+        <label for="signupName">Nom affiché</label><input id="signupName" placeholder="Ex. Alex">
+        <label for="signupEmail">Adresse e-mail</label><input id="signupEmail" type="email" placeholder="nom@studio.com" autocomplete="email">
+        <label for="signupPassword">Mot de passe</label><input id="signupPassword" type="password" placeholder="8 caractères minimum" autocomplete="new-password">
+        <div class="actions"><button class="btn secondary" id="signupBtn">Créer mon compte</button></div>
+        <p class="muted" style="font-size:11px;margin-top:12px">Selon la configuration du projet, une confirmation par e-mail peut être demandée.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="appView" class="hidden">
+    <div class="hero"><div class="eyebrow" id="welcomeEyebrow">Espace équipe</div><h1 id="welcomeTitle">Tableau de bord</h1><p id="welcomeText">Suivez les avancées du projet et gardez une trace claire du travail réalisé.</p></div>
+    <div class="stats">
+      <div class="stat"><b id="statTotal">0</b><span>Rapports visibles</span></div>
+      <div class="stat"><b id="statMine">0</b><span>Mes rapports</span></div>
+      <div class="stat"><b id="statRecent">0</b><span>Cette semaine</span></div>
+    </div>
+    <div class="grid" id="developerGrid">
+      <div class="card">
+        <h2>Nouveau rapport</h2><p class="sub">Décrivez précisément ce qui a avancé.</p>
+        <label for="project">Projet</label><input id="project" placeholder="Nom du jeu / projet">
+        <div class="row">
+          <div><label for="category">Catégorie</label><select id="category"><option>Développement / scripts</option><option>Construction / map</option><option>Gameplay</option><option>Interface / UI</option><option>Audio / effets</option><option>Tests / QA</option><option>Autre</option></select></div>
+          <div><label for="version">Version / build</label><input id="version" placeholder="Ex. V1.2.0"></div>
+        </div>
+        <label for="title">Titre du rapport</label><input id="title" placeholder="Ex. Système de véhicules terminé">
+        <label for="work">Travaux réalisés</label><textarea id="work" placeholder="Qu'avez-vous développé, modifié ou terminé ?"></textarea>
+        <label for="issues">Problèmes rencontrés</label><textarea id="issues" placeholder="Bugs, blocages, éléments à corriger…"></textarea>
+        <label for="next">Prochaines étapes</label><textarea id="next" placeholder="Que reste-t-il à faire ?"></textarea>
+        <div class="actions"><button class="btn" id="submitReport">Publier le rapport</button></div>
+      </div>
+      <div class="card">
+        <h2>Bonnes pratiques</h2><p class="sub">Un rapport utile doit être facile à comprendre.</p>
+        <div class="report"><h3>01 — Soyez précis</h3><div class="meta">Indiquez les systèmes, zones ou fonctionnalités concernés.</div></div>
+        <div class="report"><h3>02 — Signalez les blocages</h3><div class="meta">Décrivez les bugs connus et leur impact sur le projet.</div></div>
+        <div class="report"><h3>03 — Préparez la suite</h3><div class="meta">Ajoutez les tâches à reprendre lors de la prochaine session.</div></div>
+        <div class="notice">Vos rapports sont enregistrés dans la base de données du studio et restent associés à votre compte.</div>
+      </div>
+    </div>
+    <div class="toolbar"><h2 id="reportsHeading">Mes rapports</h2><input id="searchReports" placeholder="Rechercher un rapport…"></div>
+    <div id="reportsList"></div>
+  </section>
+  <div class="footer">DEVREPORTS · Plateforme interne de suivi de développement</div>
+</div>
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script>
+  // CONFIGURATION : remplacez ces deux valeurs par celles de votre projet Supabase.
+  const SUPABASE_URL = "COLLEZ_ICI_URL_SUPABASE";
+  const SUPABASE_ANON_KEY = "COLLEZ_ICI_CLE_PUBLIQUE_SUPABASE";
+  let db = null, currentUser = null, currentProfile = null, allReports = [];
+
+  const $ = id => document.getElementById(id);
+  function toast(msg, bad=false){ const el=$("toast"); el.textContent=msg; el.style.borderColor=bad?"#8d4654":"#3b5578"; el.classList.remove("hidden"); setTimeout(()=>el.classList.add("hidden"),4200); }
+  function configured(){ return SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("COLLEZ"); }
+  function setView(logged){ $("authView").classList.toggle("hidden",logged); $("appView").classList.toggle("hidden",!logged); $("logoutBtn").classList.toggle("hidden",!logged); }
+  function escapeHtml(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  function dateLabel(s){return new Date(s).toLocaleString("fr-FR",{dateStyle:"medium",timeStyle:"short"});}
+  function weekAgo(s){return new Date(s).getTime()>=Date.now()-7*86400000;}
+  async function loadProfile(){
+    const {data,error}=await db.from("profiles").select("display_name,role").eq("id",currentUser.id).single();
+    if(error) throw error; currentProfile=data;
+  }
+  async function refreshReports(){
+    let query=db.from("reports").select("id,user_id,project,category,version,title,work,issues,next_steps,created_at,profiles(display_name)").order("created_at",{ascending:false});
+    const {data,error}=await query; if(error) throw error; allReports=data||[]; renderReports();
+  }
+  function renderReports(){
+    const admin=currentProfile?.role==="admin";
+    const mine=allReports.filter(r=>r.user_id===currentUser.id);
+    const recent=allReports.filter(r=>weekAgo(r.created_at));
+    $("statTotal").textContent=allReports.length; $("statMine").textContent=mine.length; $("statRecent").textContent=recent.length;
+    $("reportsHeading").textContent=admin?"Tous les rapports":"Mes rapports";
+    const term=$("searchReports").value.trim().toLowerCase();
+    const shown=allReports.filter(r=>[r.project,r.category,r.title,r.work,r.profiles?.display_name].join(" ").toLowerCase().includes(term));
+    if(!shown.length){$("reportsList").innerHTML='<div class="empty">Aucun rapport pour le moment. Les rapports publiés apparaîtront ici.</div>';return;}
+    $("reportsList").innerHTML=shown.map(r=>`<article class="report">
+      <div class="reporthead"><div><h3>${escapeHtml(r.title)}</h3><div class="meta">${escapeHtml(r.project)} · ${escapeHtml(r.category)} · ${escapeHtml(r.version||"Version non précisée")}</div><div class="meta">Par ${escapeHtml(r.profiles?.display_name||"Membre")} · ${dateLabel(r.created_at)}</div></div><span class="tag">${r.user_id===currentUser.id?"Mon rapport":"Rapport équipe"}</span></div>
+      <div class="reportbody"><b>Travaux réalisés</b>\n${escapeHtml(r.work||"—")}\n\n<b>Problèmes rencontrés</b>\n${escapeHtml(r.issues||"Aucun renseigné")}\n\n<b>Prochaines étapes</b>\n${escapeHtml(r.next_steps||"—")}</div>
+      ${admin?`<div class="actions"><button class="btn danger" data-delete="${r.id}">Supprimer ce rapport</button></div>`:""}
+    </article>`).join("");
+    document.querySelectorAll("[data-delete]").forEach(b=>b.addEventListener("click",()=>deleteReport(b.dataset.delete)));
+  }
+  async function enterApp(user){
+    currentUser=user; await loadProfile(); setView(true);
+    const admin=currentProfile.role==="admin";
+    $("rolePill").textContent=admin?"Administrateur":"Développeur";
+    $("welcomeEyebrow").textContent=admin?"Administration":"Espace développeur";
+    $("welcomeTitle").textContent=admin?"Vue d'ensemble des rapports":"Bonjour, "+(currentProfile.display_name||"développeur")+" !";
+    $("welcomeText").textContent=admin?"Consultez les rapports de toute l'équipe et suivez l'avancement des projets.":"Publiez vos rapports de travail et retrouvez l'historique de vos contributions.";
+    $("developerGrid").classList.toggle("hidden",admin);
+    await refreshReports();
+  }
+  async function init(){
+    if(!configured()){toast("Configuration nécessaire : ajoutez l'URL et la clé publique Supabase dans index.html.",true);return;}
+    db=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    const {data:{session}}=await db.auth.getSession();
+    if(session) {try{await enterApp(session.user)}catch(e){toast("Profil introuvable. Vérifiez le script SQL d'installation.",true)}}
+    db.auth.onAuthStateChange(async(_event,session)=>{if(session){try{await enterApp(session.user)}catch(e){toast(e.message,true)}}else{currentUser=null;currentProfile=null;setView(false);}});
+  }
+  $("loginBtn").onclick=async()=>{
+    if(!db)return toast("Configurez d'abord Supabase.",true);
+    const {error}=await db.auth.signInWithPassword({email:$("loginEmail").value.trim(),password:$("loginPassword").value});
+    if(error)toast(error.message,true);
+  };
+  $("signupBtn").onclick=async()=>{
+    if(!db)return toast("Configurez d'abord Supabase.",true);
+    const name=$("signupName").value.trim(),email=$("signupEmail").value.trim(),password=$("signupPassword").value;
+    if(!name||!email||password.length<8)return toast("Renseignez votre nom, votre e-mail et un mot de passe de 8 caractères minimum.",true);
+    const {error}=await db.auth.signUp({email,password,options:{data:{display_name:name}}});
+    if(error)toast(error.message,true);else toast("Compte créé. Vérifiez votre e-mail si une confirmation est activée.");
+  };
+  $("logoutBtn").onclick=async()=>{if(db)await db.auth.signOut();};
+  $("submitReport").onclick=async()=>{
+    const project=$("project").value.trim(),title=$("title").value.trim(),work=$("work").value.trim();
+    if(!project||!title||!work)return toast("Projet, titre et travaux réalisés sont obligatoires.",true);
+    const payload={user_id:currentUser.id,project,category:$("category").value,version:$("version").value.trim(),title,work,issues:$("issues").value.trim(),next_steps:$("next").value.trim()};
+    const {error}=await db.from("reports").insert(payload);
+    if(error)return toast(error.message,true);
+    ["project","version","title","work","issues","next"].forEach(id=>$(id).value="");
+    toast("Rapport publié avec succès."); await refreshReports();
+  };
+  async function deleteReport(id){
+    if(!confirm("Supprimer définitivement ce rapport ?"))return;
+    const {error}=await db.from("reports").delete().eq("id",id);
+    if(error)toast(error.message,true);else{toast("Rapport supprimé.");await refreshReports();}
+  }
+  $("searchReports").addEventListener("input",renderReports);
+  init();
+</script>
+</body>
+</html>
