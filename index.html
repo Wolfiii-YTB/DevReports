@@ -34,13 +34,14 @@
     @media(max-width:520px){.wrap{padding:14px 13px 34px}.top{margin-bottom:24px;padding-bottom:14px}.brand{font-size:14px;gap:9px}.mark{width:35px;height:35px}.topright{gap:6px}.pill{font-size:11px;padding:6px 8px}.hero{margin:23px 0 20px}.hero h1{letter-spacing:-.7px}.card{padding:18px;border-radius:15px}.row{grid-template-columns:1fr;gap:0}.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.stat{padding:10px 8px}.stat b{font-size:20px}.stat span{font-size:10px}.toolbar{align-items:stretch}.toolbar input{max-width:none}.reporthead{display:block}.tag{display:inline-block;margin-top:8px}.actions .btn{flex:1}.toast{left:12px;right:12px;bottom:12px;max-width:none}}
     @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
     @media print{body.printing-report *{visibility:hidden!important}body.printing-report .report.print-target,body.printing-report .report.print-target *{visibility:visible!important}body.printing-report .report.print-target{position:absolute;inset:0 auto auto 0;width:100%;margin:0;border:0;box-shadow:none}body.printing-report .no-print{display:none!important}}
+    body.dark{--bg:#17211b;--panel:#202c24;--panel2:#2b382e;--line:#3b4a3e;--text:#edf3ec;--muted:#b4c0b5}body.dark input,body.dark textarea,body.dark select{background:#18231c;color:var(--text);border-color:#4b5b4d}body.dark .report{background:var(--panel);color:var(--text)}body.dark .reportbody{color:#d5dfd5}body.dark .notice{background:#29382d;color:#d2dfd3;border-color:#435748}body.dark .nav button.active,body.dark .tag{background:#334a39;color:#d9eadb}
   </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div class="brand"><div class="mark">D</div><div>DevReports<small>GAME DEVELOPMENT HUB</small></div></div>
-    <div class="topright"><span class="pill" id="rolePill">Espace sécurisé</span><button class="btn secondary hidden" id="logoutBtn">Déconnexion</button></div>
+    <div class="topright"><button class="btn secondary" id="themeBtn" type="button">Mode sombre</button><span class="pill" id="rolePill">Espace sécurisé</span><button class="btn secondary hidden" id="logoutBtn">Déconnexion</button></div>
   </header>
 
   <section id="authView">
@@ -204,6 +205,7 @@
   $("searchReports").addEventListener("input",renderReports);
   document.querySelectorAll("#mainNav [data-page]").forEach(b=>b.addEventListener("click",()=>showPage(b.dataset.page)));
   $("personFilter").addEventListener("change",renderReports);
+  const savedTheme=localStorage.getItem("devreports-theme");if(savedTheme==="dark")document.body.classList.add("dark");$("themeBtn").textContent=document.body.classList.contains("dark")?"Mode clair":"Mode sombre";$("themeBtn").onclick=()=>{document.body.classList.toggle("dark");localStorage.setItem("devreports-theme",document.body.classList.contains("dark")?"dark":"light");$("themeBtn").textContent=document.body.classList.contains("dark")?"Mode clair":"Mode sombre"};
   if(!configured())$("configBanner").classList.remove("hidden");
   init();
 </script>
