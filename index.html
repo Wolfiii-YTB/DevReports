@@ -7,22 +7,23 @@
   <meta name="description" content="Plateforme interne de suivi des rapports de développement de jeux vidéo.">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root{color-scheme:dark;--bg:#090e19;--panel:#111a2b;--panel2:#172238;--line:#283751;--text:#edf3ff;--muted:#91a2bd;--accent:#8fb5ff;--green:#65d6a4;--red:#ff7d89;--yellow:#f3c969;--radius:18px}
-    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 20% 0%,#182746 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
+    :root{color-scheme:light;--bg:#f5f2eb;--panel:#fffefa;--panel2:#edf1e9;--line:#e2e2d9;--text:#292e29;--muted:#737b72;--accent:#376c53;--green:#65d6a4;--red:#a64b45;--yellow:#f3c969;--radius:18px}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 18% 0%,#e6eee3 0,transparent 38%),var(--bg);color:var(--text);font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif}
     button,input,textarea,select{font:inherit}button{cursor:pointer}.hidden{display:none!important}
     .wrap{max-width:1240px;margin:auto;padding:26px 28px 60px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:34px;padding-bottom:18px;border-bottom:1px solid #ffffff0e}
     .brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.2px}.mark{width:39px;height:39px;border-radius:12px;background:linear-gradient(135deg,#78a9ff,#8c7bff);display:grid;place-items:center;color:#081020;font-weight:900;font-size:19px;box-shadow:0 8px 30px #527fe344}
     .brand small{display:block;color:var(--muted);font-size:11px;font-weight:500;letter-spacing:1.5px;text-transform:uppercase}
     .topright{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px}.pill{border:1px solid var(--line);background:#111a2b;border-radius:999px;padding:7px 11px}
     .hero{margin:30px 0 26px}.eyebrow{color:var(--accent);font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:800}.hero h1{font-size:clamp(30px,4.5vw,48px);line-height:1.08;letter-spacing:-1.2px;margin:9px 0 12px}.hero p{color:var(--muted);max-width:680px;margin:0}
-    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;align-items:start}.card{background:linear-gradient(155deg,#151f34,#101827);border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:0 18px 55px #0002}
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px;align-items:start}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:24px;box-shadow:0 10px 35px #2937290a}
     h2{font-size:18px;margin:0 0 5px}.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
     label{display:block;color:#bdcbe0;font-size:12px;font-weight:700;margin:13px 0 6px}
-    input,textarea,select{width:100%;background:#0c1424;border:1px solid #2b3a55;color:var(--text);border-radius:10px;padding:11px 12px;outline:none}
+    input,textarea,select{width:100%;background:#fff;border:1px solid #d9ded6;color:var(--text);border-radius:10px;padding:11px 12px;outline:none}
     input:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px #78a9ff20}textarea{min-height:115px;resize:vertical}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.btn{border:0;border-radius:10px;padding:11px 15px;font-weight:800;background:linear-gradient(135deg,#78a9ff,#8c8aff);color:#091326}.btn.secondary{background:#1b2941;color:#dce8ff;border:1px solid #344866}.btn.danger{background:#3a202b;color:#ffb6bd;border:1px solid #63323e}.btn:disabled{opacity:.55;cursor:not-allowed}
     .actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:16px}.muted{color:var(--muted)}.notice{border:1px solid #3b4d6b;background:#14223a;padding:12px 14px;border-radius:11px;color:#b9c9e3;font-size:12px;margin-top:15px}
-    .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}.stat{background:#0e1728;border:1px solid var(--line);border-radius:12px;padding:13px}.stat b{display:block;font-size:24px}.stat span{font-size:11px;color:var(--muted)}
+    .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0}.stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 8px 24px #29372908}.stat b{display:block;font-size:24px}.stat span{font-size:11px;color:var(--muted)}
+    .nav{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 18px}.nav button{border:1px solid transparent;background:transparent;color:var(--muted);border-radius:10px;padding:9px 13px;font-weight:700}.nav button.active{background:#e8f1eb;color:#316b53;border-color:#d5e4d9}.barrow{display:grid;grid-template-columns:minmax(100px,180px) 1fr 35px;gap:9px;align-items:center;margin:11px 0;font-size:12px}.bar{height:9px;border-radius:99px;background:#e8eee8}.bar i{display:block;height:100%;background:#5f9775;border-radius:99px}.person{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
     .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:22px 0 13px;flex-wrap:wrap}.toolbar h2{margin:0}.toolbar input{max-width:260px}
     .report{border:1px solid var(--line);background:#101a2c;border-radius:13px;padding:18px;margin-top:10px}.reporthead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.report h3{margin:0 0 5px;font-size:15px}.meta{font-size:11px;color:var(--muted)}.tag{font-size:10px;border-radius:99px;padding:4px 8px;background:#1d3556;color:#b9d4ff;white-space:nowrap}.reportbody{white-space:pre-wrap;color:#c4d0e2;font-size:13px;margin:13px 0 0;overflow-wrap:anywhere}
     .config-banner{border:1px solid #806b35;background:#282313;color:#f4d995;padding:14px 16px;border-radius:12px;margin:0 0 18px;font-size:13px}.config-banner strong{display:block;margin-bottom:3px}
@@ -65,12 +66,13 @@
 
   <section id="appView" class="hidden">
     <div class="hero"><div class="eyebrow" id="welcomeEyebrow">Espace équipe</div><h1 id="welcomeTitle">Tableau de bord</h1><p id="welcomeText">Suivez les avancées du projet et gardez une trace claire du travail réalisé.</p></div>
+    <nav class="nav" id="mainNav"><button class="active" data-page="dashboard">Accueil</button><button data-page="compose">Nouveau rapport</button><button data-page="reports">Rapports</button><button data-page="stats">Statistiques</button><button class="hidden" id="teamNav" data-page="team">Gestion équipe</button></nav>
     <div class="stats">
       <div class="stat"><b id="statTotal">0</b><span>Rapports visibles</span></div>
       <div class="stat"><b id="statMine">0</b><span>Mes rapports</span></div>
-      <div class="stat"><b id="statRecent">0</b><span>Cette semaine</span></div>
+      <div class="stat"><b id="statRecent">0</b><span>Cette semaine</span></div><div class="stat"><b id="statPeople">0</b><span>Membres actifs</span></div>
     </div>
-    <div class="grid" id="developerGrid">
+    <div id="dashboardPage"><div class="grid" id="developerGrid">
       <div class="card">
         <h2>Nouveau rapport</h2><p class="sub">Décrivez précisément ce qui a avancé.</p>
         <label for="project">Projet</label><input id="project" placeholder="Nom du jeu / projet">
@@ -91,9 +93,11 @@
         <div class="report"><h3>03 — Préparez la suite</h3><div class="meta">Ajoutez les tâches à reprendre lors de la prochaine session.</div></div>
         <div class="notice">Vos rapports sont enregistrés dans la base de données du studio et restent associés à votre compte.</div>
       </div>
-    </div>
-    <div class="toolbar"><h2 id="reportsHeading">Mes rapports</h2><input id="searchReports" placeholder="Rechercher un rapport…"></div>
-    <div id="reportsList"></div>
+    </div><div class="card" style="margin-top:16px"><h2>Activité de l’équipe</h2><div id="dashboardStats"></div></div></div>
+    <section id="composePage" class="hidden"></section>
+    <section id="reportsPage" class="hidden"><div class="toolbar"><h2 id="reportsHeading">Mes rapports</h2><input id="searchReports" placeholder="Rechercher un rapport…"><select id="personFilter" class="hidden"><option value="">Toute l’équipe</option></select><button class="btn secondary" id="pdfBtn">Télécharger en PDF</button></div><div id="reportsList"></div></section>
+    <section id="statsPage" class="hidden grid"><div class="card"><h2>Rapports par personne</h2><div id="peopleStats"></div></div><div class="card"><h2>Rapports par sujet</h2><div id="categoryStats"></div></div></section>
+    <section id="teamPage" class="hidden grid"><div class="card"><h2>Demandes d’accès</h2><div id="pendingList"></div></div><div class="card"><h2>Membres et permissions</h2><div id="membersList"></div></div></section>
   </section>
   <div class="footer">DEVREPORTS · Plateforme interne de suivi de développement</div>
 </div>
