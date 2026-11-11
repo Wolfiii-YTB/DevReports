@@ -66,7 +66,7 @@
 
   <section id="appView" class="hidden">
     <div class="hero"><div class="eyebrow" id="welcomeEyebrow">Espace équipe</div><h1 id="welcomeTitle">Tableau de bord</h1><p id="welcomeText">Suivez les avancées du projet et gardez une trace claire du travail réalisé.</p></div>
-    <nav class="nav" id="mainNav"><button class="active" data-page="dashboard">Accueil</button><button data-page="compose">Nouveau rapport</button><button data-page="reports">Rapports</button><button data-page="stats">Statistiques</button><button class="hidden" id="teamNav" data-page="team">Gestion équipe</button></nav>
+    <nav class="nav" id="mainNav"><button class="active" data-page="dashboard">Accueil</button><button data-page="compose">Nouveau rapport</button><button class="admin-only hidden" data-page="reports">Tous les rapports</button><button class="admin-only hidden" data-page="stats">Statistiques</button><button class="admin-only hidden" id="teamNav" data-page="team">Gestion équipe</button></nav>
     <div class="stats">
       <div class="stat"><b id="statTotal">0</b><span>Rapports visibles</span></div>
       <div class="stat"><b id="statMine">0</b><span>Mes rapports</span></div>
@@ -107,7 +107,7 @@
   // CONFIGURATION : remplacez ces deux valeurs par celles de votre projet Supabase.
   const SUPABASE_URL = "https://bylwvlxxvgumvqgpwgod.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_T3XYbDWXV5VaC8WQj3CZOQ_LmB7CTwv";
-  let db = null, currentUser = null, currentProfile = null, allReports = [];
+  let db = null, currentUser = null, currentProfile = null, allReports = [], allProfiles=[];
 
   const $ = id => document.getElementById(id);
   function toast(msg, bad=false){ const el=$("toast"); el.textContent=msg; el.style.borderColor=bad?"#8d4654":"#3b5578"; el.classList.remove("hidden"); setTimeout(()=>el.classList.add("hidden"),4200); }
@@ -116,19 +116,21 @@
   function escapeHtml(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
   function dateLabel(s){return new Date(s).toLocaleString("fr-FR",{dateStyle:"medium",timeStyle:"short"});}
   function weekAgo(s){return new Date(s).getTime()>=Date.now()-7*86400000;}
+  function showPage(page){if(page==="team"&&currentProfile?.role!=="admin")page="dashboard";["dashboard","compose","reports","stats","team"].forEach(p=>$(p+"Page").classList.toggle("hidden",p!==page&&!(page==="compose"&&p==="dashboard")));document.querySelectorAll("#mainNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));if(page==="compose")$("project").focus();if(page==="reports")renderReports();if(page==="stats")renderStats();if(page==="team")renderTeam();}
   async function loadProfile(){
-    const {data,error}=await db.from("profiles").select("display_name,role").eq("id",currentUser.id).single();
+    const {data,error}=await db.from("profiles").select("display_name,role,status").eq("id",currentUser.id).single();
     if(error) throw error; currentProfile=data;
   }
   async function refreshReports(){
     const {data,error}=await db.from("reports").select("id,user_id,project,category,version,title,work,issues,next_steps,created_at").order("created_at",{ascending:false});
     if(error) throw error;
-    const {data:profiles,error:profileError}=await db.from("profiles").select("id,display_name");
+    const {data:profiles,error:profileError}=await db.from("profiles").select("id,display_name,role,status");
     if(profileError) console.warn("Les noms des membres ne sont pas accessibles.",profileError);
+    allProfiles=profiles||[];
     const names=new Map((profiles||[]).map(p=>[p.id,p.display_name]));
     if(currentUser&&currentProfile)names.set(currentUser.id,currentProfile.display_name);
     allReports=(data||[]).map(r=>({...r,profiles:{display_name:names.get(r.user_id)||"Membre"}}));
-    renderReports();
+    renderReports();renderStats();if(currentProfile?.role==="admin")renderTeam();
   }
   function renderReports(){
     const admin=currentProfile?.role==="admin";
@@ -137,7 +139,7 @@
     $("statTotal").textContent=allReports.length; $("statMine").textContent=mine.length; $("statRecent").textContent=recent.length;
     $("reportsHeading").textContent=admin?"Tous les rapports":"Mes rapports";
     const term=$("searchReports").value.trim().toLowerCase();
-    const shown=allReports.filter(r=>[r.project,r.category,r.title,r.work,r.profiles?.display_name].join(" ").toLowerCase().includes(term));
+    const person=$("personFilter")?.value||"";const shown=allReports.filter(r=>(!person||person===r.user_id)&&[r.project,r.category,r.title,r.work,r.profiles?.display_name].join(" ").toLowerCase().includes(term));
     if(!shown.length){$("reportsList").innerHTML='<div class="empty">Aucun rapport pour le moment. Les rapports publiés apparaîtront ici.</div>';return;}
     $("reportsList").innerHTML=shown.map(r=>`<article class="report">
       <div class="reporthead"><div><h3>${escapeHtml(r.title)}</h3><div class="meta">${escapeHtml(r.project)} · ${escapeHtml(r.category)} · ${escapeHtml(r.version||"Version non précisée")}</div><div class="meta">Par ${escapeHtml(r.profiles?.display_name||"Membre")} · ${dateLabel(r.created_at)}</div></div><span class="tag">${r.user_id===currentUser.id?"Mon rapport":"Rapport équipe"}</span></div>
@@ -146,14 +148,18 @@
     </article>`).join("");
     document.querySelectorAll("[data-delete]").forEach(b=>b.addEventListener("click",()=>deleteReport(b.dataset.delete)));
   }
+  function renderStats(){const draw=(id,rows)=>{const max=Math.max(1,...rows.map(x=>x.n));$(id).innerHTML=rows.length?rows.map(x=>`<div class="barrow"><span>${escapeHtml(x.name)}</span><div class="bar"><i style="width:${Math.max(3,x.n/max*100)}%"></i></div><b>${x.n}</b></div>`).join(""):'<div class="empty">Pas encore de données.</div>'};const byPerson=allProfiles.filter(p=>!p.status||p.status==="active").map(p=>({name:p.display_name,n:allReports.filter(r=>r.user_id===p.id).length})).sort((a,b)=>b.n-a.n);draw("peopleStats",byPerson);const cats={};allReports.forEach(r=>cats[r.category]=(cats[r.category]||0)+1);draw("categoryStats",Object.entries(cats).map(([name,n])=>({name,n})));draw("dashboardStats",byPerson.slice(0,5))}
+  function renderTeam(){if(currentProfile?.role!=="admin")return;const pending=allProfiles.filter(p=>p.status==="pending");$("pendingList").innerHTML=pending.length?pending.map(p=>`<div class="person"><span>${escapeHtml(p.display_name)}</span><button class="btn" data-approve="${p.id}">Accepter</button><button class="btn danger" data-reject="${p.id}">Refuser</button></div>`).join(""):'<div class="empty">Aucune demande en attente.</div>';const members=allProfiles.filter(p=>p.status==="active"&&p.id!==currentUser.id);$("membersList").innerHTML=members.map(p=>`<div class="person"><span>${escapeHtml(p.display_name)}</span><select data-role="${p.id}"><option value="developer" ${p.role==="developer"?"selected":""}>Développeur</option><option value="admin" ${p.role==="admin"?"selected":""}>Admin</option></select><button class="btn danger" data-remove="${p.id}">Supprimer</button></div>`).join("")||'<div class="empty">Aucun autre membre actif.</div>';document.querySelectorAll("[data-approve]").forEach(b=>b.onclick=()=>changeMember(b.dataset.approve,{status:"active"}));document.querySelectorAll("[data-reject]").forEach(b=>b.onclick=()=>changeMember(b.dataset.reject,{status:"rejected"}));document.querySelectorAll("[data-role]").forEach(s=>s.onchange=()=>changeMember(s.dataset.role,{role:s.value}));document.querySelectorAll("[data-remove]").forEach(b=>b.onclick=()=>removeMember(b.dataset.remove))}
+  async function changeMember(id,changes){const {error}=await db.from("profiles").update(changes).eq("id",id);if(error)return toast(error.message,true);await refreshReports();toast("Équipe mise à jour.")}
+  async function removeMember(id){if(!confirm("Supprimer ce membre et ses rapports ? Cette action est définitive."))return;const {error}=await db.rpc("admin_delete_user",{target_user:id});if(error)return toast(error.message,true);await refreshReports();toast("Membre supprimé.")}
   async function enterApp(user){
-    currentUser=user; await loadProfile(); setView(true);
+    currentUser=user; await loadProfile();if(currentProfile.status&&currentProfile.status!=="active"){await db.auth.signOut();currentUser=null;currentProfile=null;setView(false);toast("Ton compte attend la validation d’un administrateur.");return} setView(true);
     const admin=currentProfile.role==="admin";
     $("rolePill").textContent=admin?"Administrateur":"Développeur";
     $("welcomeEyebrow").textContent=admin?"Administration":"Espace développeur";
     $("welcomeTitle").textContent=admin?"Vue d'ensemble des rapports":"Bonjour, "+(currentProfile.display_name||"développeur")+" !";
     $("welcomeText").textContent=admin?"Consultez les rapports de toute l'équipe et suivez l'avancement des projets.":"Publiez vos rapports de travail et retrouvez l'historique de vos contributions.";
-    $("developerGrid").classList.toggle("hidden",admin);
+    document.querySelectorAll(".admin-only").forEach(el=>el.classList.toggle("hidden",!admin));$("personFilter").classList.toggle("hidden",!admin);showPage("dashboard");
     await refreshReports();
   }
   async function init(){
@@ -190,6 +196,8 @@
     if(error)toast(error.message,true);else{toast("Rapport supprimé.");await refreshReports();}
   }
   $("searchReports").addEventListener("input",renderReports);
+  document.querySelectorAll("#mainNav [data-page]").forEach(b=>b.addEventListener("click",()=>showPage(b.dataset.page)));
+  $("personFilter").addEventListener("change",renderReports);$("pdfBtn").onclick=()=>window.print();
   if(!configured())$("configBanner").classList.remove("hidden");
   init();
 </script>

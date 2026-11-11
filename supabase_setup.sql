@@ -5,6 +5,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null default 'Membre',
   role text not null default 'developer' check (role in ('developer','admin')),
+  status text not null default 'active' check (status in ('pending','active','rejected')),
   created_at timestamptz not null default now()
 );
 
@@ -23,6 +24,7 @@ create table if not exists public.reports (
 
 alter table public.profiles enable row level security;
 alter table public.reports enable row level security;
+alter table public.profiles add column if not exists status text not null default 'active' check (status in ('pending','active','rejected'));
 
 -- SECURITY DEFINER évite la récursion RLS quand une policy vérifie le rôle.
 create or replace function public.is_admin()
@@ -38,8 +40,27 @@ as $$
   );
 $$;
 
+create or replace function public.admin_delete_user(target_user uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if not (select public.is_admin()) or target_user = (select auth.uid()) then
+    raise exception 'Action réservée à un administrateur sur un autre compte';
+  end if;
+  delete from auth.users where id = target_user;
+end;
+$$;
+revoke all on function public.admin_delete_user(uuid) from public;
+grant execute on function public.admin_delete_user(uuid) to authenticated;
+
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to authenticated;
+
+create or replace function public.is_active_member()
+returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.profiles where id = (select auth.uid()) and status = 'active');
+$$;
+revoke all on function public.is_active_member() from public;
+grant execute on function public.is_active_member() to authenticated;
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -48,8 +69,8 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, display_name, role)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'display_name', 'Membre'), 'developer');
+  insert into public.profiles (id, display_name, role, status)
+  values (new.id, coalesce(new.raw_user_meta_data ->> 'display_name', 'Membre'), 'developer', 'pending');
   return new;
 end;
 $$;
@@ -87,19 +108,23 @@ drop policy if exists "read own reports or admin all" on public.reports;
 drop policy if exists "developers insert own reports" on public.reports;
 drop policy if exists "developers update own reports or admin" on public.reports;
 drop policy if exists "admin delete reports" on public.reports;
+drop policy if exists "admin update other profiles" on public.profiles;
 
 create policy "profile read self" on public.profiles
 for select to authenticated using (id = (select auth.uid()));
 create policy "admin read all profiles" on public.profiles
 for select to authenticated using ((select public.is_admin()));
+create policy "admin update other profiles" on public.profiles
+for update to authenticated using ((select public.is_admin()) and id <> (select auth.uid()))
+with check ((select public.is_admin()) and id <> (select auth.uid()));
 create policy "read own reports or admin all" on public.reports
-for select to authenticated using (user_id = (select auth.uid()) or (select public.is_admin()));
+for select to authenticated using ((select public.is_admin()) or ((select public.is_active_member()) and user_id = (select auth.uid())));
 create policy "developers insert own reports" on public.reports
-for insert to authenticated with check (user_id = (select auth.uid()));
+for insert to authenticated with check ((select public.is_active_member()) and user_id = (select auth.uid()));
 create policy "developers update own reports or admin" on public.reports
 for update to authenticated
-using (user_id = (select auth.uid()) or (select public.is_admin()))
-with check (user_id = (select auth.uid()) or (select public.is_admin()));
+using ((select public.is_admin()) or ((select public.is_active_member()) and user_id = (select auth.uid())))
+with check ((select public.is_admin()) or ((select public.is_active_member()) and user_id = (select auth.uid())));
 create policy "admin delete reports" on public.reports
 for delete to authenticated using ((select public.is_admin()));
 
