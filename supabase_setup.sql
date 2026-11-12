@@ -58,6 +58,15 @@ alter table public.member_warnings add column if not exists admin_name text not 
 update public.member_warnings set description = reason where description = '' and reason <> '';
 update public.member_warnings w set admin_name = p.display_name from public.profiles p where w.admin_id = p.id and w.admin_name = '';
 alter table public.member_warnings enable row level security;
+create table if not exists public.warning_disputes (
+  id uuid primary key default gen_random_uuid(),
+  warning_id uuid not null references public.member_warnings(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  reason text not null,
+  status text not null default 'open' check (status in ('open','reviewed','dismissed')),
+  created_at timestamptz not null default now()
+);
+alter table public.warning_disputes enable row level security;
 
 -- SECURITY DEFINER évite la récursion RLS quand une policy vérifie le rôle.
 create or replace function public.is_admin()
@@ -106,6 +115,17 @@ returns boolean language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.is_active_member() from public;
 grant execute on function public.is_active_member() to authenticated;
+drop policy if exists "members read own warning disputes" on public.warning_disputes;
+create policy "members read own warning disputes" on public.warning_disputes for select to authenticated
+using (user_id = (select auth.uid()) or (select public.is_admin()));
+drop policy if exists "members contest own warnings" on public.warning_disputes;
+create policy "members contest own warnings" on public.warning_disputes for insert to authenticated
+with check (user_id = (select auth.uid()) and (select public.is_active_member()) and exists (
+  select 1 from public.member_warnings w where w.id = warning_id and w.member_id = (select auth.uid())
+));
+drop policy if exists "admin manage warning disputes" on public.warning_disputes;
+create policy "admin manage warning disputes" on public.warning_disputes for all to authenticated
+using ((select public.is_admin())) with check ((select public.is_admin()));
 drop policy if exists "insert own report disputes" on public.report_disputes;
 create policy "insert own report disputes" on public.report_disputes for insert to authenticated with check (user_id=(select auth.uid()) and (select public.is_active_member()));
 
@@ -131,6 +151,13 @@ insert into public.profiles (id, display_name, role)
 select id, coalesce(raw_user_meta_data ->> 'display_name', 'Membre'), 'developer'
 from auth.users
 on conflict (id) do nothing;
+
+-- Le compte administrateur principal est le premier administrateur créé.
+update public.profiles set display_name = 'Laélien'
+where id = (select id from public.profiles where role = 'admin' order by created_at asc limit 1)
+  and display_name <> 'Laélien';
+update public.member_warnings set admin_name = 'Laélien'
+where admin_id = (select id from public.profiles where role = 'admin' order by created_at asc limit 1);
 
 -- Les rapports embarquent profiles(display_name) dans leurs requêtes PostgREST.
 -- Cette FK explicite permet à Supabase de résoudre cette relation.
