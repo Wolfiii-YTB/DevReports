@@ -47,8 +47,16 @@ create table if not exists public.member_warnings (
   member_id uuid not null references public.profiles(id) on delete cascade,
   admin_id uuid not null references public.profiles(id),
   reason text not null,
+  motif text not null default 'Autre',
+  description text not null default '',
+  admin_name text not null default '',
   created_at timestamptz not null default now()
 );
+alter table public.member_warnings add column if not exists motif text not null default 'Autre';
+alter table public.member_warnings add column if not exists description text not null default '';
+alter table public.member_warnings add column if not exists admin_name text not null default '';
+update public.member_warnings set description = reason where description = '' and reason <> '';
+update public.member_warnings w set admin_name = p.display_name from public.profiles p where w.admin_id = p.id and w.admin_name = '';
 alter table public.member_warnings enable row level security;
 
 -- SECURITY DEFINER évite la récursion RLS quand une policy vérifie le rôle.
