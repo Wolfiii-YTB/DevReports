@@ -22,6 +22,7 @@ create table if not exists public.reports (
   next_steps text,
   author_roles text[] not null default '{}'::text[],
   action_types text[] not null default '{}'::text[],
+  report_type text not null default 'progress', platform text, moderation_action text, moderated_user text,
   created_at timestamptz not null default now()
 );
 
@@ -31,6 +32,15 @@ alter table public.profiles add column if not exists status text not null defaul
 alter table public.profiles add column if not exists roles text[] not null default array['developer']::text[];
 alter table public.reports add column if not exists author_roles text[] not null default '{}'::text[];
 alter table public.reports add column if not exists action_types text[] not null default '{}'::text[];
+alter table public.reports add column if not exists report_type text not null default 'progress';
+alter table public.reports add column if not exists platform text;
+alter table public.reports add column if not exists moderation_action text;
+alter table public.reports add column if not exists moderated_user text;
+
+create table if not exists public.projects(id uuid primary key default gen_random_uuid(),name text not null unique,active boolean not null default true,created_at timestamptz not null default now());
+alter table public.projects enable row level security;
+create table if not exists public.report_disputes(id uuid primary key default gen_random_uuid(),report_id uuid not null references public.reports(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,reason text not null,status text not null default 'open',created_at timestamptz not null default now());
+alter table public.report_disputes enable row level security;
 
 create table if not exists public.member_warnings (
   id uuid primary key default gen_random_uuid(),
@@ -72,6 +82,12 @@ grant execute on function public.is_admin() to authenticated;
 drop policy if exists "admin manage warnings" on public.member_warnings;
 create policy "admin manage warnings" on public.member_warnings for all to authenticated
 using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "read active projects" on public.projects;
+create policy "read active projects" on public.projects for select to authenticated using (active or (select public.is_admin()));
+drop policy if exists "admin manage projects" on public.projects;
+create policy "admin manage projects" on public.projects for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "read report disputes" on public.report_disputes;
+create policy "read report disputes" on public.report_disputes for select to authenticated using (user_id=(select auth.uid()) or (select public.is_admin()));
 
 create or replace function public.is_active_member()
 returns boolean language sql stable security definer set search_path = '' as $$
@@ -79,6 +95,8 @@ returns boolean language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.is_active_member() from public;
 grant execute on function public.is_active_member() to authenticated;
+drop policy if exists "insert own report disputes" on public.report_disputes;
+create policy "insert own report disputes" on public.report_disputes for insert to authenticated with check (user_id=(select auth.uid()) and (select public.is_active_member()));
 
 create or replace function public.handle_new_user()
 returns trigger
