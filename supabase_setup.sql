@@ -23,6 +23,7 @@ create table if not exists public.reports (
   author_roles text[] not null default '{}'::text[],
   action_types text[] not null default '{}'::text[],
   report_type text not null default 'progress', platform text, moderation_action text, moderated_user text,
+  discord_server text, discord_area text, discord_target text, discord_changes text,
   created_at timestamptz not null default now()
 );
 
@@ -36,6 +37,10 @@ alter table public.reports add column if not exists report_type text not null de
 alter table public.reports add column if not exists platform text;
 alter table public.reports add column if not exists moderation_action text;
 alter table public.reports add column if not exists moderated_user text;
+alter table public.reports add column if not exists discord_server text;
+alter table public.reports add column if not exists discord_area text;
+alter table public.reports add column if not exists discord_target text;
+alter table public.reports add column if not exists discord_changes text;
 
 create table if not exists public.projects(id uuid primary key default gen_random_uuid(),name text not null unique,active boolean not null default true,created_at timestamptz not null default now());
 alter table public.projects enable row level security;
