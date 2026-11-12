@@ -73,6 +73,46 @@ create table if not exists public.warning_disputes (
 );
 alter table public.warning_disputes enable row level security;
 
+create table if not exists public.tasks (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (length(trim(title)) between 2 and 140),
+  description text not null default '',
+  status text not null default 'todo' check (status in ('backlog','todo','doing','review','done')),
+  priority text not null default 'normal' check (priority in ('low','normal','high','urgent')),
+  position bigint not null default 0,
+  project text not null default '',
+  assigned_to uuid references public.profiles(id) on delete set null,
+  created_by uuid not null references public.profiles(id) on delete cascade,
+  due_date date,
+  labels text[] not null default '{}'::text[],
+  checklist jsonb not null default '[]'::jsonb check (jsonb_typeof(checklist) = 'array'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.tasks add column if not exists position bigint not null default 0;
+alter table public.tasks enable row level security;
+
+create table if not exists public.task_comments (
+  id uuid primary key default gen_random_uuid(),
+  task_id uuid not null references public.tasks(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null check (length(trim(body)) between 1 and 2000),
+  created_at timestamptz not null default now()
+);
+alter table public.task_comments enable row level security;
+
+create index if not exists tasks_board_idx on public.tasks(status, updated_at desc);
+create index if not exists tasks_assignee_idx on public.tasks(assigned_to, status);
+create index if not exists tasks_creator_idx on public.tasks(created_by, created_at desc);
+create index if not exists task_comments_task_created_idx on public.task_comments(task_id, created_at);
+
+create index if not exists reports_user_created_idx on public.reports(user_id, created_at desc);
+create index if not exists reports_created_idx on public.reports(created_at desc);
+create index if not exists profiles_status_idx on public.profiles(status);
+create index if not exists member_warnings_member_created_idx on public.member_warnings(member_id, created_at desc);
+create index if not exists warning_disputes_status_created_idx on public.warning_disputes(status, created_at desc);
+create index if not exists report_disputes_user_created_idx on public.report_disputes(user_id, created_at desc);
+
 -- SECURITY DEFINER évite la récursion RLS quand une policy vérifie le rôle.
 create or replace function public.is_admin()
 returns boolean
@@ -101,6 +141,35 @@ grant execute on function public.admin_delete_user(uuid) to authenticated;
 
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to authenticated;
+-- Remove toute policy résiduelle sur les tables applicatives avant de reconstruire
+-- l'ensemble exact ci-dessous : les policies permissives s'additionnent dans PostgreSQL.
+do $$
+declare old_policy record;
+begin
+  for old_policy in
+    select tablename, policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename in ('profiles','reports','projects','report_disputes','member_warnings','warning_disputes','tasks','task_comments')
+  loop
+    execute format('drop policy %I on public.%I', old_policy.policyname, old_policy.tablename);
+  end loop;
+end;
+$$;
+
+revoke all on table public.profiles, public.reports, public.projects,
+  public.report_disputes, public.member_warnings, public.warning_disputes,
+  public.tasks, public.task_comments
+  from anon, authenticated;
+grant select, update on public.profiles to authenticated;
+grant select, insert, update, delete on public.reports to authenticated;
+grant select, insert, update, delete on public.projects to authenticated;
+grant select, insert on public.report_disputes to authenticated;
+grant select, insert, update, delete on public.member_warnings to authenticated;
+grant select, insert, update, delete on public.warning_disputes to authenticated;
+grant select, insert, update, delete on public.tasks to authenticated;
+grant select, insert, delete on public.task_comments to authenticated;
+
 drop policy if exists "admin manage warnings" on public.member_warnings;
 create policy "admin manage warnings" on public.member_warnings for all to authenticated
 using ((select public.is_admin())) with check ((select public.is_admin()));
@@ -120,6 +189,53 @@ returns boolean language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.is_active_member() from public;
 grant execute on function public.is_active_member() to authenticated;
+create or replace function public.guard_task_write()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.created_by <> (select auth.uid()) and not (select public.is_admin()) then
+      raise exception 'Une tâche doit être créée par le compte connecté';
+    end if;
+  elsif new.created_by is distinct from old.created_by and not (select public.is_admin()) then
+    raise exception 'Le créateur d’une tâche ne peut pas être modifié';
+  end if;
+  if new.assigned_to is not null and not exists (
+    select 1 from public.profiles p where p.id = new.assigned_to and p.status = 'active'
+  ) then
+    raise exception 'La tâche doit être attribuée à un membre actif';
+  end if;
+  new.updated_at = now();
+  return new;
+end;
+$$;
+revoke all on function public.guard_task_write() from public;
+drop trigger if exists guard_task_write on public.tasks;
+create trigger guard_task_write before insert or update on public.tasks
+for each row execute function public.guard_task_write();
+drop policy if exists "active members read tasks" on public.tasks;
+create policy "active members read tasks" on public.tasks for select to authenticated
+using ((select public.is_active_member()));
+drop policy if exists "active members create tasks" on public.tasks;
+create policy "active members create tasks" on public.tasks for insert to authenticated
+with check ((select public.is_active_member()) and created_by = (select auth.uid()));
+drop policy if exists "active members update tasks" on public.tasks;
+create policy "active members update tasks" on public.tasks for update to authenticated
+using ((select public.is_active_member()))
+with check ((select public.is_active_member()));
+drop policy if exists "admins or creators delete tasks" on public.tasks;
+create policy "admins or creators delete tasks" on public.tasks for delete to authenticated
+using ((select public.is_admin()) or created_by = (select auth.uid()));
+drop policy if exists "active members read task comments" on public.task_comments;
+create policy "active members read task comments" on public.task_comments for select to authenticated
+using ((select public.is_active_member()));
+drop policy if exists "active members add own task comments" on public.task_comments;
+create policy "active members add own task comments" on public.task_comments for insert to authenticated
+with check ((select public.is_active_member()) and user_id = (select auth.uid()) and exists (
+  select 1 from public.tasks t where t.id = task_id
+));
+drop policy if exists "authors or admins delete task comments" on public.task_comments;
+create policy "authors or admins delete task comments" on public.task_comments for delete to authenticated
+using ((select public.is_admin()) or user_id = (select auth.uid()));
 drop policy if exists "members read own warning disputes" on public.warning_disputes;
 create policy "members read own warning disputes" on public.warning_disputes for select to authenticated
 using (user_id = (select auth.uid()) or (select public.is_admin()));
@@ -132,7 +248,10 @@ drop policy if exists "admin manage warning disputes" on public.warning_disputes
 create policy "admin manage warning disputes" on public.warning_disputes for all to authenticated
 using ((select public.is_admin())) with check ((select public.is_admin()));
 drop policy if exists "insert own report disputes" on public.report_disputes;
-create policy "insert own report disputes" on public.report_disputes for insert to authenticated with check (user_id=(select auth.uid()) and (select public.is_active_member()));
+create policy "insert own report disputes" on public.report_disputes for insert to authenticated
+with check (user_id=(select auth.uid()) and (select public.is_active_member()) and exists (
+  select 1 from public.reports r where r.id = report_id and r.user_id = (select auth.uid())
+));
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -192,7 +311,7 @@ drop policy if exists "admin update other profiles" on public.profiles;
 create policy "profile read self" on public.profiles
 for select to authenticated using (id = (select auth.uid()));
 create policy "admin read all profiles" on public.profiles
-for select to authenticated using ((select public.is_admin()));
+for select to authenticated using ((select public.is_admin()) or status = 'active');
 create policy "admin update other profiles" on public.profiles
 for update to authenticated using ((select public.is_admin()) and id <> (select auth.uid()))
 with check ((select public.is_admin()) and id <> (select auth.uid()));

@@ -1,38 +1,33 @@
-# DevReports — plateforme de rapports de développement
+# DevReports
 
-Une petite plateforme web responsive pour une équipe de développement de jeux vidéo.
+Application statique d’équipe pour les rapports, les avertissements et le suivi des tâches, avec Supabase Auth et PostgreSQL/RLS.
 
 ## Fonctionnalités
-- Connexion et création de compte par e-mail/mot de passe.
-- Rôle développeur par défaut.
-- Formulaire de rapport : projet, catégorie, version, titre, travaux réalisés, problèmes, prochaines étapes.
-- Un développeur ne voit que ses rapports.
-- Un administrateur voit les rapports de toute l'équipe et peut supprimer un rapport.
-- Recherche dans les rapports.
-- Interface sombre responsive.
 
-## Important : authentification réelle
-Le site utilise Supabase pour l'authentification et la base de données. Il ne faut pas remplacer cela par un simple mot de passe écrit dans le JavaScript : ce serait facilement contournable.
+- Comptes développeurs soumis à validation et rôles administrateur protégés côté serveur.
+- Rapports d’avancement, modération et gestion Discord, recherche et export PDF A4.
+- Avertissements modifiables/supprimables par les admins et contestables par le membre concerné.
+- Tableau Kanban partagé : tâches à planifier, à faire, en cours, à vérifier et terminées.
+- Attribution, échéances, priorités, étiquettes, checklist et commentaires sur les tâches.
+- Gestion des projets, interface responsive en thème clair/sombre et export JSON des données accessibles.
 
-## Installation
-1. Créez un projet sur https://supabase.com/.
-2. Dans Supabase, ouvrez **SQL Editor** et exécutez tout le contenu de `supabase_setup.sql`.
-3. Ouvrez **Project Settings > API** et copiez :
-   - Project URL
-   - la clé publique `anon` / `publishable` (jamais la clé `service_role`).
-4. Dans `index.html`, remplacez `COLLEZ_ICI_URL_SUPABASE` et `COLLEZ_ICI_CLE_PUBLIQUE_SUPABASE` par l'URL du projet et sa clé publique `anon`/`publishable`. Cette clé publique est prévue pour le navigateur et reste protégée par les règles RLS. Ne mettez jamais la clé `service_role` dans le site.
-5. Hébergez le dossier sur Netlify, GitHub Pages (si votre configuration autorise le chargement de scripts externes) ou un hébergeur statique.
-6. Dans Supabase > Authentication > URL Configuration, renseignez l'URL de votre site.
-7. Créez votre compte sur le site.
-8. Dans Supabase > SQL Editor, exécutez la requête de promotion admin située à la fin de `supabase_setup.sql`, après avoir remplacé l'adresse e-mail.
+## Configuration et publication
 
-Si vous avez déjà exécuté une ancienne version du SQL, relancez le script complet mis à jour pour remplacer les policies et éviter la récursion RLS.
+1. Dans Supabase, ouvre **SQL Editor** et exécute le script complet `supabase_setup.sql`. Il peut être relancé pour appliquer les évolutions du schéma et recréer les politiques RLS.
+2. Vérifie `SUPABASE_URL` et `SUPABASE_ANON_KEY` au début de `app.js`. Seule la clé publique `publishable`/`anon` est prévue dans le navigateur. **Ne place jamais une clé `secret` ou `service_role` dans le dépôt.**
+3. Publie les fichiers `index.html`, `app.js`, `styles.css` et `supabase_setup.sql` sur GitHub Pages ou un hébergeur statique.
+4. Dans **Supabase → Authentication → URL Configuration**, ajoute l’URL publiée et configure la confirmation e-mail/CAPTCHA selon les besoins du studio.
+5. Crée le compte admin et attribue le rôle depuis Supabase avec accès SQL, jamais depuis le formulaire public. La requête modèle est commentée à la fin du script SQL.
 
-## Gestion des accès
-- Les inscriptions créent uniquement des comptes `developer`.
-- Un développeur ne peut pas se donner le rôle admin depuis le site.
-- Le rôle admin doit être attribué par une personne ayant accès au projet Supabase.
-- Les règles RLS de Supabase protègent les données côté serveur.
+Si le script SQL a déjà été exécuté auparavant, relance sa dernière version complète. Les développeurs actifs peuvent voir les profils actifs (identifiant et nom uniquement dans les requêtes de l’application), les tâches de l’équipe et leurs commentaires. Seuls les admins peuvent gérer les comptes, les projets et les vues d’administration. La clé publique ne protège pas les données à elle seule : les politiques RLS sont indispensables.
 
-## Personnalisation
-Le nom DevReports, les couleurs et les textes peuvent être modifiés dans `index.html`.
+## Sauvegardes
+
+Le bouton **Télécharger l’export JSON** dans **Projets** télécharge une copie des lignes accessibles pour les rapports, tâches, commentaires, profils, projets, avertissements et contestations. Ce fichier est une copie de données, pas un mécanisme de restauration automatique : garde-le dans un endroit privé et utilise aussi les sauvegardes/exports proposés par Supabase pour pouvoir restaurer la base et les comptes d’authentification.
+
+## Fichiers
+
+- `index.html` : structure des pages et formulaires.
+- `app.js` : authentification et logique de l’application.
+- `styles.css` : mise en page responsive et thèmes.
+- `supabase_setup.sql` : tables, fonctions, index et politiques RLS.
