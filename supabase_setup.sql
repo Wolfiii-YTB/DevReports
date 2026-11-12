@@ -82,6 +82,9 @@ grant execute on function public.is_admin() to authenticated;
 drop policy if exists "admin manage warnings" on public.member_warnings;
 create policy "admin manage warnings" on public.member_warnings for all to authenticated
 using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "members read own warnings" on public.member_warnings;
+create policy "members read own warnings" on public.member_warnings for select to authenticated
+using (member_id = (select auth.uid()));
 drop policy if exists "read active projects" on public.projects;
 create policy "read active projects" on public.projects for select to authenticated using (active or (select public.is_admin()));
 drop policy if exists "admin manage projects" on public.projects;
