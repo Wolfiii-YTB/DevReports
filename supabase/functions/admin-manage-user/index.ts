@@ -48,12 +48,22 @@ Deno.serve(async (request) => {
     if (authError || !authData.user) return response({ error: "Session invalide ou expirée." }, 401, origin);
 
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const body = await request.json();
+    if (body?.action === "completeInitialPasswordChange") {
+      const password = typeof body.password === "string" ? body.password : "";
+      if (password.length < 8 || password.length > 128) return response({ error: "Le mot de passe doit contenir entre 8 et 128 caractères." }, 400, origin);
+      const { data: account, error: accountError } = await admin.auth.admin.getUserById(authData.user.id);
+      if (accountError || !account.user || account.user.app_metadata?.must_change_password !== true || !account.user.app_metadata?.login_identifier) return response({ error: "Aucun mot de passe provisoire n’attend de remplacement." }, 409, origin);
+      const { data: profile, error: profileError } = await admin.from("profiles").select("status").eq("id", authData.user.id).single();
+      if (profileError || profile?.status !== "active") return response({ error: "Ce compte n’est pas actif." }, 403, origin);
+      const { error } = await admin.auth.admin.updateUserById(authData.user.id, { password, app_metadata: { ...account.user.app_metadata, must_change_password: false } });
+      if (error) throw error;
+      return response({ ok: true }, 200, origin);
+    }
     const { data: callerProfile, error: profileError } = await admin.from("profiles").select("role,status").eq("id", authData.user.id).single();
     if (profileError || callerProfile?.role !== "admin" || callerProfile?.status !== "active") {
       return response({ error: "Action réservée à un administrateur actif." }, 403, origin);
     }
-
-    const body = await request.json();
     if (body?.action === "listUsers") {
       const [{ data: profiles, error: profilesError }, users] = await Promise.all([
         admin.from("profiles").select("id,display_name,nickname,role,roles,status"),
@@ -65,7 +75,7 @@ Deno.serve(async (request) => {
       const rows = (users.data.users || []).map((user) => ({
         id: user.id,
         email: user.email?.endsWith("@devreports.invalid") ? "" : user.email || "",
-        loginIdentifier: typeof user.user_metadata?.login_identifier === "string" ? user.user_metadata.login_identifier : "",
+        loginIdentifier: typeof user.app_metadata?.login_identifier === "string" ? user.app_metadata.login_identifier : "",
         ...(profileById.get(user.id) || {}),
       }));
       return response({ users: rows }, 200, origin);
@@ -83,7 +93,8 @@ Deno.serve(async (request) => {
         email: internalEmail,
         password: temporaryPassword,
         email_confirm: true,
-        user_metadata: { display_name: displayName, nickname, login_identifier: identifier, must_change_password: true },
+        user_metadata: { display_name: displayName, nickname },
+        app_metadata: { login_identifier: identifier, must_change_password: true },
       });
       if (createError) {
         if (createError.message.toLowerCase().includes("already") || createError.message.toLowerCase().includes("registered")) return response({ error: "Cet identifiant est déjà pris. Choisis-en un autre." }, 409, origin);
@@ -125,7 +136,7 @@ Deno.serve(async (request) => {
       return response({ error: "Le mot de passe et l’adresse du compte administrateur principal sont verrouillés." }, 403, origin);
     }
     const updates: Record<string, unknown> = { user_metadata: { ...(targetData.user.user_metadata || {}), display_name: displayName, nickname } };
-    if (targetData.user.user_metadata?.login_identifier && emailChanged) return response({ error: "L’adresse technique de connexion par identifiant ne peut pas être modifiée." }, 403, origin);
+    if (targetData.user.app_metadata?.login_identifier && emailChanged) return response({ error: "L’adresse technique de connexion par identifiant ne peut pas être modifiée." }, 403, origin);
     if (emailChanged) updates.email = email;
     if (password) updates.password = password;
     const { error: updateError } = await admin.auth.admin.updateUserById(userId, updates);
