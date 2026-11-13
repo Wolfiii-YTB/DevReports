@@ -13,6 +13,7 @@ const serviceKey = secret("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEYS");
 const anonKey = secret("SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEYS");
 const allowedOrigins = (Deno.env.get("ALLOWED_ORIGINS") || "").split(",").map((item) => item.trim()).filter(Boolean);
 const eventTypes = ["report_created", "absence_requested", "late_reported", "absence_recorded", "late_recorded", "warning_created", "announcement_published"];
+class PublicWebhookError extends Error {}
 
 function reply(body: unknown, status: number, origin: string) {
   return new Response(JSON.stringify(body), { status, headers: {
@@ -35,10 +36,19 @@ function eventTitle(type: string) {
   return ({ report_created: "Nouveau rapport", absence_requested: "Demande d’absence", late_reported: "Retard signalé", absence_recorded: "Absence consignée", late_recorded: "Retard consigné", warning_created: "Avertissement attribué", announcement_published: "Nouvelle annonce" } as Record<string, string>)[type] || "Événement d’équipe";
 }
 async function sendWebhook(url: string, title: string, fields: Array<{ name: string; value: string; inline?: boolean }>) {
-  const response = await fetch(url, { method: "POST", redirect: "error", signal: AbortSignal.timeout(8000), headers: { "content-type": "application/json" }, body: JSON.stringify({
-    username: "DevReports", allowed_mentions: { parse: [] }, embeds: [{ title, color: 0x43845b, fields: fields.slice(0, 10).map((field) => ({ ...field, name: clip(field.name, 256), value: clip(field.value, 1024) })), footer: { text: "DevReports · Notification d’équipe" }, timestamp: new Date().toISOString() }],
-  }) });
-  if (!response.ok) throw new Error("Le service Discord a refusé le message.");
+  let response: Response;
+  try {
+    response = await fetch(url, { method: "POST", redirect: "error", signal: AbortSignal.timeout(8000), headers: { "content-type": "application/json" }, body: JSON.stringify({
+      username: "DevReports", allowed_mentions: { parse: [] }, embeds: [{ title, color: 0x43845b, fields: fields.slice(0, 10).map((field) => ({ ...field, name: clip(field.name, 256), value: clip(field.value, 1024) })), footer: { text: "DevReports · Notification d’équipe" }, timestamp: new Date().toISOString() }],
+    }) });
+  } catch {
+    throw new PublicWebhookError("Connexion à Discord impossible ou expirée. Réessaie dans un instant.");
+  }
+  if (response.ok) return;
+  if (response.status === 401 || response.status === 404) throw new PublicWebhookError("Discord ne reconnaît plus ce webhook. Recrée-le dans Discord puis remplace son URL dans Webhooks.");
+  if (response.status === 403) throw new PublicWebhookError("Discord refuse l’accès à ce webhook. Vérifie que le salon et le webhook existent toujours.");
+  if (response.status === 429) throw new PublicWebhookError("Discord limite temporairement les envois. Attends un peu puis réessaie.");
+  throw new PublicWebhookError(`Discord a refusé le message (HTTP ${response.status}). Vérifie les réglages du webhook.`);
 }
 
 Deno.serve(async (request) => {
@@ -135,6 +145,7 @@ Deno.serve(async (request) => {
     return reply({ ok: true }, 200, origin);
   } catch (error) {
     console.error("manage-team-webhook failed");
+    if (error instanceof PublicWebhookError) return reply({ error: error.message }, 502, origin);
     return reply({ error: "Échec de l’opération webhook. Vérifie la configuration SQL, la fonction Supabase et le webhook Discord." }, 400, origin);
   }
 });
