@@ -11,7 +11,7 @@
   function escapeHtml(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
   function dateLabel(s){return new Date(s).toLocaleString("fr-FR",{dateStyle:"medium",timeStyle:"short"});}
   function weekAgo(s){return new Date(s).getTime()>=Date.now()-7*86400000;}
-  function showPage(page){if((page==="team"||page==="stats"||page==="projects")&&currentProfile?.role!=="admin")page="dashboard";["dashboard","compose","reports","tasks","stats","team","projects"].forEach(p=>$(p+"Page").classList.toggle("hidden",p!==page));document.querySelectorAll("#mainNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));if(currentUser) localStorage.setItem("devreports-page-"+currentUser.id,page);if(page==="compose")$("project").focus();if(page==="reports")renderReports();if(page==="tasks")loadTasks();if(page==="stats")renderStats();if(page==="team")renderTeam();if(page==="projects")loadProjects();}
+  function showPage(page){if((page==="team"||page==="stats"||page==="projects")&&currentProfile?.role!=="admin")page="dashboard";["dashboard","compose","reports","tasks","stats","team","projects"].forEach(p=>$(p+"Page").classList.toggle("hidden",p!==page));document.querySelectorAll("#mainNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));if(currentUser)localStorage.setItem("devreports-page-"+currentUser.id,page);history.replaceState(null,"",location.pathname+location.search+"#"+page);if(page==="compose")$("project").focus();if(page==="reports")renderReports();if(page==="tasks")loadTasks();if(page==="stats")renderStats();if(page==="team")renderTeam();if(page==="projects")loadProjects();}
   async function loadProfile(){
     const {data,error}=await db.from("profiles").select("display_name,nickname,role,status,roles,suspended_until,restriction_reason").eq("id",currentUser.id).single();
     if(error) throw error; currentProfile=data;
@@ -75,7 +75,7 @@
     $("welcomeEyebrow").textContent=admin?"Administration":"Espace développeur";
     $("welcomeTitle").textContent=admin?"Vue d'ensemble des rapports":"Bonjour, "+(currentProfile.nickname||currentProfile.display_name||"développeur")+" !";
     $("welcomeText").textContent=admin?"Consultez les rapports de toute l'équipe et suivez l'avancement des projets.":"Publiez vos rapports de travail et retrouvez l'historique de vos contributions.";
-    document.querySelectorAll(".admin-only").forEach(el=>el.classList.toggle("hidden",!admin));$("personFilter").classList.toggle("hidden",!admin);const savedPage=localStorage.getItem("devreports-page-"+user.id)||"dashboard";showPage(["dashboard","compose","reports","tasks","stats","team","projects"].includes(savedPage)?savedPage:"dashboard");
+    document.querySelectorAll(".admin-only").forEach(el=>el.classList.toggle("hidden",!admin));$("personFilter").classList.toggle("hidden",!admin);const validPages=["dashboard","compose","reports","tasks","stats","team","projects"],urlPage=decodeURIComponent(location.hash.slice(1)),savedPage=localStorage.getItem("devreports-page-"+user.id)||"dashboard",targetPage=validPages.includes(urlPage)?urlPage:savedPage;showPage(validPages.includes(targetPage)?targetPage:"dashboard");
     const loads=await Promise.allSettled([refreshReports(),loadMyWarnings()]);if(loads[0].status==="rejected")toast("Les avertissements sont chargés, mais les rapports ont échoué : "+(loads[0].reason?.message||"erreur Supabase"),true);
   }
   async function init(){
