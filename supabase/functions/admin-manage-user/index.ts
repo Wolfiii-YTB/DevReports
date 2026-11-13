@@ -55,7 +55,7 @@ Deno.serve(async (request) => {
       const password = typeof body.password === "string" ? body.password : "";
       if (password.length < 8 || password.length > 128) return response({ error: "Le mot de passe doit contenir entre 8 et 128 caractères." }, 400, origin);
       const { data: account, error: accountError } = await admin.auth.admin.getUserById(authData.user.id);
-      if (accountError || !account.user || account.user.app_metadata?.must_change_password !== true || !account.user.app_metadata?.login_identifier) return response({ error: "Aucun mot de passe provisoire n’attend de remplacement." }, 409, origin);
+      if (accountError || !account.user || account.user.app_metadata?.must_change_password !== true) return response({ error: "Aucun mot de passe provisoire n’attend de remplacement." }, 409, origin);
       const { data: profile, error: profileError } = await admin.from("profiles").select("status").eq("id", authData.user.id).single();
       if (profileError || profile?.status !== "active") return response({ error: "Ce compte n’est pas actif." }, 403, origin);
       const { error } = await admin.auth.admin.updateUserById(authData.user.id, { password, app_metadata: { ...account.user.app_metadata, must_change_password: false } });
@@ -83,23 +83,27 @@ Deno.serve(async (request) => {
       return response({ users: rows }, 200, origin);
     }
 
-    if (body?.action === "createIdentifierUser") {
+    if (body?.action === "createIdentifierUser" || body?.action === "createManagedUser") {
       const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
       const nickname = typeof body.nickname === "string" ? body.nickname.trim() : "";
       const identifier = typeof body.identifier === "string" ? body.identifier.trim().toLowerCase() : "";
+      const loginType = body?.action === "createIdentifierUser" ? "identifier" : body.loginType === "email" ? "email" : "identifier";
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
       if (displayName.length < 2 || displayName.length > 80 || nickname.length > 40) return response({ error: "Le nom ou le pseudo est invalide." }, 400, origin);
-      if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(identifier)) return response({ error: "Identifiant invalide : 3 à 30 caractères, lettres sans accent, chiffres, point, tiret ou tiret bas." }, 400, origin);
+      if (loginType === "identifier" && !/^[a-z0-9][a-z0-9._-]{2,29}$/.test(identifier)) return response({ error: "Identifiant invalide : 3 à 30 caractères, lettres sans accent, chiffres, point, tiret ou tiret bas." }, 400, origin);
+      if (loginType === "email" && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return response({ error: "Adresse e-mail invalide." }, 400, origin);
       const temporaryPassword = Array.from(crypto.getRandomValues(new Uint8Array(24)), (byte) => byte.toString(16).padStart(2, "0")).join("");
-      const internalEmail = `id-${identifier}@devreports.invalid`;
+      const loginEmail = loginType === "identifier" ? `id-${identifier}@devreports.invalid` : email;
+      const appMetadata = loginType === "identifier" ? { login_identifier: identifier, must_change_password: true } : { must_change_password: true };
       const { data: created, error: createError } = await admin.auth.admin.createUser({
-        email: internalEmail,
+        email: loginEmail,
         password: temporaryPassword,
         email_confirm: true,
         user_metadata: { display_name: displayName, nickname },
-        app_metadata: { login_identifier: identifier, must_change_password: true },
+        app_metadata: appMetadata,
       });
       if (createError) {
-        if (createError.message.toLowerCase().includes("already") || createError.message.toLowerCase().includes("registered")) return response({ error: "Cet identifiant est déjà pris. Choisis-en un autre." }, 409, origin);
+        if (createError.message.toLowerCase().includes("already") || createError.message.toLowerCase().includes("registered")) return response({ error: loginType === "identifier" ? "Cet identifiant est déjà pris. Choisis-en un autre." : "Cette adresse e-mail est déjà associée à un compte." }, 409, origin);
         throw createError;
       }
       const { error: profileUpdateError } = await admin.from("profiles").update({ display_name: displayName, nickname, role: "developer", roles: ["developer"], status: "active" }).eq("id", created.user.id);
@@ -107,7 +111,7 @@ Deno.serve(async (request) => {
         await admin.auth.admin.deleteUser(created.user.id);
         throw profileUpdateError;
       }
-      return response({ ok: true, identifier, temporaryPassword }, 201, origin);
+      return response({ ok: true, loginType, identifier: loginType === "identifier" ? identifier : "", email: loginType === "email" ? email : "", temporaryPassword }, 201, origin);
     }
 
     if (body?.action !== "updateUser" || typeof body.userId !== "string") {
