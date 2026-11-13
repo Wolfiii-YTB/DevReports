@@ -9,6 +9,8 @@ Application statique d’équipe pour les rapports, les avertissements et le sui
 - Avertissements modifiables/supprimables par les admins et contestables par le membre concerné.
 - Tableau Kanban partagé : tâches à planifier, à faire, en cours, à vérifier et terminées.
 - Attribution, échéances, priorités, étiquettes, checklist et commentaires sur les tâches.
+- Demandes d’absence avec validation admin et signalements de retard suivis dans l’espace équipe.
+- Messagerie générale intégrée pour les membres actifs, avec actualisation en direct et repli périodique.
 - Rôles personnalisés avec attribution multiple, et édition sécurisée du nom, pseudo, e-mail et mot de passe des comptes.
 - Envoi d’un lien Supabase de réinitialisation de mot de passe; aucun mot de passe temporaire n’est transmis par e-mail.
 - Gestion des projets, interface responsive en thème clair/sombre et export JSON des données accessibles.
@@ -36,7 +38,7 @@ Si le script SQL a déjà été exécuté auparavant, relance sa dernière versi
 
 ## Sauvegardes
 
-Le bouton **Télécharger l’export JSON** dans **Projets** télécharge une copie des lignes accessibles pour les rapports, tâches, commentaires, profils, rôles, projets, avertissements et contestations. Ce fichier est une copie de données, pas un mécanisme de restauration automatique : garde-le dans un endroit privé et utilise aussi les sauvegardes/exports proposés par Supabase pour pouvoir restaurer la base et les comptes d’authentification.
+Le bouton **Télécharger l’export JSON** dans **Projets** télécharge une copie des lignes accessibles pour les rapports, tâches, commentaires, profils, rôles, projets, avertissements, sanctions, absences, retards, messages et contestations. Ce fichier est une copie de données, pas un mécanisme de restauration automatique : garde-le dans un endroit privé et utilise aussi les sauvegardes/exports proposés par Supabase pour pouvoir restaurer la base et les comptes d’authentification.
 
 ## Fichiers
 

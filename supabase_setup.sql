@@ -87,6 +87,8 @@ create table if not exists public.member_sanctions (
   created_at timestamptz not null default now()
 );
 alter table public.member_sanctions enable row level security;
+revoke all on table public.member_sanctions from anon, authenticated;
+grant select on table public.member_sanctions to authenticated;
 
 alter table public.member_warnings add column if not exists motif text not null default 'Autre';
 alter table public.member_warnings add column if not exists description text not null default '';
@@ -132,10 +134,52 @@ create table if not exists public.task_comments (
 );
 alter table public.task_comments enable row level security;
 
+create table if not exists public.team_absences (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  start_date date not null,
+  end_date date not null,
+  reason text not null check (length(trim(reason)) between 3 and 2000),
+  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  admin_note text not null default '',
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  check (end_date >= start_date)
+);
+alter table public.team_absences enable row level security;
+
+create table if not exists public.late_notices (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  session_at timestamptz not null,
+  expected_delay_minutes integer not null check (expected_delay_minutes between 1 and 1440),
+  reason text not null check (length(trim(reason)) between 3 and 2000),
+  status text not null default 'pending' check (status in ('pending','acknowledged')),
+  admin_note text not null default '',
+  reviewed_by uuid references public.profiles(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.late_notices enable row level security;
+
+create table if not exists public.team_messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null check (length(trim(body)) between 1 and 2000),
+  created_at timestamptz not null default now()
+);
+alter table public.team_messages enable row level security;
+
 create index if not exists tasks_board_idx on public.tasks(status, updated_at desc);
 create index if not exists tasks_assignee_idx on public.tasks(assigned_to, status);
 create index if not exists tasks_creator_idx on public.tasks(created_by, created_at desc);
 create index if not exists task_comments_task_created_idx on public.task_comments(task_id, created_at);
+create index if not exists team_absences_member_created_idx on public.team_absences(user_id, created_at desc);
+create index if not exists team_absences_status_dates_idx on public.team_absences(status, start_date, end_date);
+create index if not exists late_notices_member_created_idx on public.late_notices(user_id, created_at desc);
+create index if not exists late_notices_status_created_idx on public.late_notices(status, created_at desc);
+create index if not exists team_messages_created_idx on public.team_messages(created_at desc);
 
 create index if not exists reports_user_created_idx on public.reports(user_id, created_at desc);
 create index if not exists reports_created_idx on public.reports(created_at desc);
@@ -241,7 +285,7 @@ begin
     select tablename, policyname
     from pg_policies
     where schemaname = 'public'
-      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','warning_disputes','tasks','task_comments')
+      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','warning_disputes','tasks','task_comments','team_absences','late_notices','team_messages')
   loop
     execute format('drop policy %I on public.%I', old_policy.policyname, old_policy.tablename);
   end loop;
@@ -250,7 +294,8 @@ $$;
 
 revoke all on table public.profiles, public.reports, public.projects, public.team_roles,
   public.report_disputes, public.member_warnings, public.warning_disputes,
-  public.tasks, public.task_comments
+  public.tasks, public.task_comments, public.team_absences, public.late_notices,
+  public.team_messages
   from anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.reports to authenticated;
@@ -261,6 +306,9 @@ grant select, insert, update, delete on public.member_warnings to authenticated;
 grant select, insert, update, delete on public.warning_disputes to authenticated;
 grant select, insert, update, delete on public.tasks to authenticated;
 grant select, insert, delete on public.task_comments to authenticated;
+grant select, insert, update on public.team_absences to authenticated;
+grant select, insert, update on public.late_notices to authenticated;
+grant select, insert on public.team_messages to authenticated;
 
 drop policy if exists "admin manage warnings" on public.member_warnings;
 create policy "admin manage warnings" on public.member_warnings for all to authenticated
@@ -281,6 +329,42 @@ returns boolean language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.is_active_member() from public;
 grant execute on function public.is_active_member() to authenticated;
+drop policy if exists "active members read absences" on public.team_absences;
+create policy "active members read absences" on public.team_absences for select to authenticated
+using (user_id = (select auth.uid()) or (select public.is_admin()));
+drop policy if exists "members submit own absences" on public.team_absences;
+create policy "members submit own absences" on public.team_absences for insert to authenticated
+with check ((select public.is_active_member()) and user_id = (select auth.uid()));
+drop policy if exists "admins review absences" on public.team_absences;
+create policy "admins review absences" on public.team_absences for update to authenticated
+using ((select public.is_admin())) with check ((select public.is_admin()));
+
+drop policy if exists "active members read late notices" on public.late_notices;
+create policy "active members read late notices" on public.late_notices for select to authenticated
+using (user_id = (select auth.uid()) or (select public.is_admin()));
+drop policy if exists "members submit own late notices" on public.late_notices;
+create policy "members submit own late notices" on public.late_notices for insert to authenticated
+with check ((select public.is_active_member()) and user_id = (select auth.uid()));
+drop policy if exists "admins review late notices" on public.late_notices;
+create policy "admins review late notices" on public.late_notices for update to authenticated
+using ((select public.is_admin())) with check ((select public.is_admin()));
+
+drop policy if exists "active members read team messages" on public.team_messages;
+create policy "active members read team messages" on public.team_messages for select to authenticated
+using ((select public.is_active_member()));
+drop policy if exists "active members send own team messages" on public.team_messages;
+create policy "active members send own team messages" on public.team_messages for insert to authenticated
+with check ((select public.is_active_member()) and user_id = (select auth.uid()));
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+     and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'team_messages') then
+    execute 'alter publication supabase_realtime add table public.team_messages';
+  end if;
+end;
+$$;
+
 drop policy if exists "active members read team roles" on public.team_roles;
 create policy "active members read team roles" on public.team_roles for select to authenticated using ((select public.is_active_member()));
 drop policy if exists "admins manage team roles" on public.team_roles;
