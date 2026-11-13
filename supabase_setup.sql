@@ -320,6 +320,41 @@ $$;
 revoke all on function public.admin_set_member_restriction(uuid,text,text,integer) from public;
 grant execute on function public.admin_set_member_restriction(uuid,text,text,integer) to authenticated;
 
+create or replace function public.admin_edit_member_sanction(target_sanction uuid, reason_text text, new_expires_at timestamptz default null)
+returns void language plpgsql security definer set search_path = '' as $$
+declare sanction_row record; latest_id uuid; member_status text;
+begin
+  if not (select public.is_admin()) then raise exception 'Action réservée à un administrateur.'; end if;
+  if length(trim(coalesce(reason_text,''))) < 3 or length(reason_text) > 2000 then raise exception 'Le motif doit contenir entre 3 et 2000 caractères.'; end if;
+  select id,member_id,action into sanction_row from public.member_sanctions where id=target_sanction;
+  if not found then raise exception 'Antécédent introuvable.'; end if;
+  if sanction_row.action not in ('suspend','ban') then raise exception 'Cet événement système ne peut pas être modifié.'; end if;
+  if sanction_row.action='ban' and new_expires_at is not null then raise exception 'Un bannissement définitif ne prend pas de date de fin.'; end if;
+  if sanction_row.action='suspend' and (new_expires_at is null or new_expires_at <= now() or new_expires_at > now()+interval '365 days') then raise exception 'La fin de suspension doit être dans les 365 prochains jours.'; end if;
+  update public.member_sanctions set reason=trim(reason_text),expires_at=new_expires_at where id=target_sanction;
+  select id into latest_id from public.member_sanctions where member_id=sanction_row.member_id order by created_at desc,id desc limit 1;
+  select status into member_status from public.profiles where id=sanction_row.member_id;
+  if latest_id=target_sanction and member_status in ('suspended','banned') then
+    update public.profiles set restriction_reason=trim(reason_text),suspended_until=case when sanction_row.action='suspend' then new_expires_at else null end where id=sanction_row.member_id;
+  end if;
+end;
+$$;
+revoke all on function public.admin_edit_member_sanction(uuid,text,timestamptz) from public;
+grant execute on function public.admin_edit_member_sanction(uuid,text,timestamptz) to authenticated;
+
+create or replace function public.admin_delete_member_sanction(target_sanction uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare sanction_action text;
+begin
+  if not (select public.is_admin()) then raise exception 'Action réservée à un administrateur.'; end if;
+  select action into sanction_action from public.member_sanctions where id=target_sanction;
+  if not found then raise exception 'Antécédent introuvable.'; end if;
+  delete from public.member_sanctions where id=target_sanction;
+end;
+$$;
+revoke all on function public.admin_delete_member_sanction(uuid) from public;
+grant execute on function public.admin_delete_member_sanction(uuid) to authenticated;
+
 create or replace function public.restore_expired_own_suspension()
 returns boolean language plpgsql security definer set search_path = '' as $$
 declare affected integer := 0;

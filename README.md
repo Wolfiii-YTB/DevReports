@@ -7,6 +7,7 @@ Application statique d’équipe pour les rapports, les avertissements et le sui
 - Comptes développeurs soumis à validation et rôles administrateur protégés côté serveur.
 - Rapports d’avancement, modération et gestion Discord, recherche et export PDF A4.
 - Avertissements modifiables/supprimables par les admins et contestables par le membre concerné.
+- Historique par membre des avertissements et sanctions, avec édition/suppression admin; l’édition d’une sanction active synchronise son motif et sa durée avec le compte.
 - Contestation des suspensions et bannissements depuis l’écran de connexion, avec un centre admin qui rassemble les contestations.
 - Gestion d’équipe organisée par onglets; menus compacts pour les rôles et les actions de chaque membre.
 - Tableau Kanban partagé : tâches à planifier, à faire, en cours, à vérifier et terminées.
