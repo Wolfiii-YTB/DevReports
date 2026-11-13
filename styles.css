@@ -77,4 +77,6 @@
     body.dark .dialog-icon{background:#3c5542;color:#d9efdc}
     @media(max-width:760px){#teamPage{grid-template-columns:1fr}#teamPage>.card:nth-child(2){grid-column:auto}#membersList{grid-template-columns:1fr}.member-actions{grid-template-columns:1fr 1fr}}
     @media(max-width:430px){.member-actions{grid-template-columns:1fr}.member-card{padding:15px}#teamPage>.card{padding:18px}}
+    .restricted-members{border-top:1px solid var(--line);margin-top:20px;padding-top:16px}.restricted-members h3{font-size:15px;margin:0 0 12px}.restricted-members #restrictedMembersList{display:grid;gap:10px}.restricted-member{border-left:4px solid #bd6558}.member-actions [data-suspend-member],.member-actions [data-ban-member]{background:#fff1ef;color:#963e39;border:1px solid #efd0cd}
+    body.dark .member-actions [data-suspend-member],body.dark .member-actions [data-ban-member]{background:#513532;color:#ffe1dd;border-color:#80544e}
   

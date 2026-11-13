@@ -33,6 +33,10 @@ alter table public.reports enable row level security;
 alter table public.profiles add column if not exists status text not null default 'active' check (status in ('pending','active','rejected'));
 alter table public.profiles add column if not exists roles text[] not null default array['developer']::text[];
 alter table public.profiles add column if not exists nickname text not null default '';
+alter table public.profiles add column if not exists suspended_until timestamptz;
+alter table public.profiles add column if not exists restriction_reason text not null default '';
+alter table public.profiles drop constraint if exists profiles_status_check;
+alter table public.profiles add constraint profiles_status_check check (status in ('pending','active','rejected','suspended','banned'));
 alter table public.reports add column if not exists author_roles text[] not null default '{}'::text[];
 alter table public.reports add column if not exists action_types text[] not null default '{}'::text[];
 alter table public.reports add column if not exists report_type text not null default 'progress';
@@ -73,6 +77,17 @@ create table if not exists public.member_warnings (
   admin_name text not null default '',
   created_at timestamptz not null default now()
 );
+create table if not exists public.member_sanctions (
+  id uuid primary key default gen_random_uuid(),
+  member_id uuid not null references public.profiles(id) on delete cascade,
+  admin_id uuid not null references public.profiles(id),
+  action text not null check (action in ('suspend','ban','restore')),
+  reason text not null,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.member_sanctions enable row level security;
+
 alter table public.member_warnings add column if not exists motif text not null default 'Autre';
 alter table public.member_warnings add column if not exists description text not null default '';
 alter table public.member_warnings add column if not exists admin_name text not null default '';
@@ -173,6 +188,48 @@ grant execute on function public.admin_delete_team_role(text) to authenticated;
 
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to authenticated;
+
+drop policy if exists "admins read member sanctions" on public.member_sanctions;
+drop policy if exists "members read own sanctions" on public.member_sanctions;
+create policy "admins read member sanctions" on public.member_sanctions for select to authenticated using ((select public.is_admin()));
+create policy "members read own sanctions" on public.member_sanctions for select to authenticated using (member_id = (select auth.uid()));
+
+create or replace function public.admin_set_member_restriction(target_user uuid, restriction_status text, reason_text text, duration_hours integer default null)
+returns void language plpgsql security definer set search_path = '' as $$
+declare expiry timestamptz;
+begin
+  if not public.is_admin() then raise exception 'Action réservée à un administrateur.'; end if;
+  if target_user = auth.uid() then raise exception 'Tu ne peux pas modifier ton propre accès.'; end if;
+  if restriction_status not in ('suspended','banned') then raise exception 'Sanction invalide.'; end if;
+  if length(trim(coalesce(reason_text,''))) < 3 or length(reason_text) > 2000 then raise exception 'Le motif doit contenir entre 3 et 2000 caractères.'; end if;
+  if restriction_status = 'suspended' and duration_hours not in (24,168,720) then raise exception 'Durée de suspension invalide.'; end if;
+  if restriction_status = 'banned' and duration_hours is not null then raise exception 'Un bannissement définitif ne prend pas de durée.'; end if;
+  if not exists(select 1 from public.profiles where id = target_user and role <> 'admin' and status = 'active') then raise exception 'Compte membre introuvable ou protégé.'; end if;
+  if restriction_status = 'suspended' then expiry := now() + make_interval(hours => duration_hours); else expiry := null; end if;
+  update public.profiles set status = restriction_status, suspended_until = expiry, restriction_reason = trim(reason_text) where id = target_user;
+  insert into public.member_sanctions(member_id,admin_id,action,reason,expires_at) values(target_user,auth.uid(),case when restriction_status='suspended' then 'suspend' else 'ban' end,trim(reason_text),expiry);
+end;
+$$;
+revoke all on function public.admin_set_member_restriction(uuid,text,text,integer) from public;
+grant execute on function public.admin_set_member_restriction(uuid,text,text,integer) to authenticated;
+
+create or replace function public.restore_expired_own_suspension()
+returns boolean language plpgsql security definer set search_path = '' as $$
+declare affected integer := 0;
+begin
+  if auth.uid() is null then raise exception 'Connexion requise.'; end if;
+  update public.profiles set status='active', suspended_until=null, restriction_reason=''
+    where id=auth.uid() and status='suspended' and suspended_until <= now();
+  get diagnostics affected = row_count;
+  if affected > 0 then
+    insert into public.member_sanctions(member_id,admin_id,action,reason)
+      values(auth.uid(),auth.uid(),'restore','Fin automatique de la suspension temporaire');
+  end if;
+  return affected > 0;
+end;
+$$;
+revoke all on function public.restore_expired_own_suspension() from public;
+grant execute on function public.restore_expired_own_suspension() to authenticated;
 -- Remove toute policy résiduelle sur les tables applicatives avant de reconstruire
 -- l'ensemble exact ci-dessous : les policies permissives s'additionnent dans PostgreSQL.
 do $$
@@ -218,7 +275,7 @@ create policy "read report disputes" on public.report_disputes for select to aut
 
 create or replace function public.is_active_member()
 returns boolean language sql stable security definer set search_path = '' as $$
-  select exists (select 1 from public.profiles where id = (select auth.uid()) and status = 'active');
+  select exists (select 1 from public.profiles where id = (select auth.uid()) and (status = 'active' or (status = 'suspended' and suspended_until <= now())));
 $$;
 revoke all on function public.is_active_member() from public;
 grant execute on function public.is_active_member() to authenticated;
