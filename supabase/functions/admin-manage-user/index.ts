@@ -148,7 +148,7 @@ Deno.serve(async (request) => {
     if (primaryAdmin?.id === userId && (emailChanged || password)) {
       return response({ error: "L’adresse e-mail et le mot de passe du compte administrateur principal sont protégés." }, 403, origin);
     }
-    const { data: duplicateIdentifier } = await admin.from("profiles").eq("login_identifier", identifier).neq("id", userId).limit(1).maybeSingle();
+    const { data: duplicateIdentifier } = await admin.from("profiles").select("id").eq("login_identifier", identifier).neq("id", userId).limit(1).maybeSingle();
     if (duplicateIdentifier) return response({ error: "Cet identifiant est déjà utilisé par un autre membre." }, 409, origin);
     const updates: Record<string, unknown> = { user_metadata: { ...(targetData.user.user_metadata || {}), display_name: displayName, nickname }, app_metadata: { ...(targetData.user.app_metadata || {}), login_identifier: identifier } };
     if (targetData.user.app_metadata?.login_identifier && emailChanged) return response({ error: "L’adresse technique de connexion par identifiant ne peut pas être modifiée." }, 403, origin);
