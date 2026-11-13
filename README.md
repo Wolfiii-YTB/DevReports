@@ -13,7 +13,7 @@ Application statique d’équipe pour les rapports, les avertissements et le sui
 - Tableau Kanban partagé : tâches à planifier, à faire, en cours, à vérifier et terminées.
 - Attribution, échéances, priorités, étiquettes, checklist et commentaires sur les tâches.
 - Demandes d’absence avec validation admin et signalements de retard suivis dans l’espace équipe.
-- Messagerie générale intégrée pour les membres actifs, avec actualisation en direct et repli périodique.
+- Messagerie générale et conversations privées entre membres actifs, avec suppression des messages selon le rôle et actualisation en direct.
 - Rôles personnalisés avec attribution multiple, et édition sécurisée du nom, pseudo, e-mail et mot de passe des comptes.
 - Envoi d’un lien Supabase de réinitialisation de mot de passe; aucun mot de passe temporaire n’est transmis par e-mail.
 - Rôles par défaut nettoyés, et rôles du compte administrateur principal protégés côté base de données; seul le compte principal gère ses propres rôles.
@@ -53,6 +53,8 @@ Le bouton **Télécharger l’export JSON** dans **Projets** télécharge une co
 - `supabase_setup.sql` : tables, fonctions, index et politiques RLS.
 - `supabase/functions/admin-manage-user/index.ts` : API serveur admin pour les opérations Auth sensibles.
 - `supabase/functions/manage-team-webhook/index.ts` : gestion sécurisée des réglages webhook et notifications Discord.
+
+**Projet Supabase existant :** l’historique des migrations CLI de cette base n’est pas aligné avec les migrations appliquées manuellement. N’exécute pas `supabase db push` sur la production tant que cet historique n’a pas été réconcilié : certaines anciennes migrations sont des migrations de transition. Applique les migrations nécessaires individuellement après vérification, ou utilise le script complet `supabase_setup.sql`.
 
 ## Webhooks et migrations de sécurité
 
