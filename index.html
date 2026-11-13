@@ -8,7 +8,7 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://bylwvlxxvgumvqgpwgod.supabase.co wss://bylwvlxxvgumvqgpwgod.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <link rel="stylesheet" href="./styles.css?v=20261113-16">
+  <link rel="stylesheet" href="./styles.css?v=20261113-17">
 </head>
 <body>
 <a class="skip-link" id="skipLink" href="#authView">Aller au contenu principal</a>
@@ -94,7 +94,9 @@
     </section>
     <section id="messagesPage" class="hidden">
       <div class="page-intro"><p class="eyebrow">Communication d’équipe</p><h2>Messagerie</h2><p class="sub">Un espace commun pour les membres actifs de l’équipe. Reste courtois et ne partage pas de données sensibles.</p></div>
-      <div class="card chat-card"><div class="chat-heading"><div><h3>Discussion générale</h3><p class="sub">Les nouveaux messages apparaissent automatiquement.</p></div><span class="pill" id="chatConnectionState">Connexion…</span></div><div id="teamMessages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions text"></div><form id="messageForm" class="chat-composer"><label class="sr-only" for="messageBody">Ton message</label><textarea id="messageBody" maxlength="2000" rows="2" required placeholder="Écris un message…"></textarea><button class="btn" type="submit">Envoyer</button></form><p class="muted chat-hint">2000 caractères maximum · Historique partagé avec l’équipe.</p></div>
+      <nav class="message-tabs" aria-label="Type de conversation"><button type="button" class="active" data-message-tab="general">Discussion générale</button><button type="button" data-message-tab="private">Messages privés</button></nav>
+      <section id="generalChatView" class="card chat-card message-view"><div class="chat-heading"><div><h3>Discussion générale</h3><p class="sub">Les nouveaux messages apparaissent automatiquement.</p></div><span class="pill" id="chatConnectionState">Connexion…</span></div><div id="teamMessages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions text"></div><form id="messageForm" class="chat-composer"><label class="sr-only" for="messageBody">Ton message</label><textarea id="messageBody" maxlength="2000" rows="2" required placeholder="Écris un message…"></textarea><button class="btn" type="submit">Envoyer</button></form><p class="muted chat-hint">2000 caractères maximum · Historique partagé avec l’équipe. Tu peux supprimer tes messages ; l’administration peut modérer toute la discussion.</p></section>
+      <section id="privateChatView" class="card chat-card message-view hidden"><div class="chat-heading"><div><h3>Conversation privée</h3><p class="sub">Seuls toi et le membre choisi pouvez lire ces messages.</p></div><span class="pill" id="directChatState">Privé</span></div><label for="directMessageMember">Membre</label><select id="directMessageMember"><option value="">Choisis un membre de l’équipe…</option></select><div id="directMessages" class="chat-messages" role="log" aria-live="polite" aria-relevant="additions text"><div class="empty">Choisis un membre pour ouvrir une conversation privée.</div></div><form id="directMessageForm" class="chat-composer"><label class="sr-only" for="directMessageBody">Ton message privé</label><textarea id="directMessageBody" maxlength="2000" rows="2" required placeholder="Écris un message privé…"></textarea><button class="btn" type="submit">Envoyer</button></form><p class="muted chat-hint">Les messages privés ne sont jamais visibles dans la discussion générale.</p></section>
     </section>    <section id="statsPage" class="hidden"><div class="stats stats-extended"><div class="stat"><b id="activeWarningsStat">0</b><span>Avertissements actifs</span></div><div class="stat"><b id="activeSanctionsStat">0</b><span>Suspensions / bannissements actifs</span></div><div class="stat"><b id="activeAbsencesStat">0</b><span>Absences actives</span></div><div class="stat"><b id="activeLatesStat">0</b><span>Retards actifs</span></div></div><div class="grid"><div class="card"><h2>Rapports par personne</h2><div id="peopleStats"></div></div><div class="card"><h2>Rapports par sujet</h2><div id="categoryStats"></div></div></div><div class="grid stats-member-grids"><div class="card"><h2>Avertissements actifs par membre</h2><div id="warningsByMemberStats"></div></div><div class="card"><h2>Sanctions de compte actives</h2><div id="sanctionsByMemberStats"></div></div><div class="card"><h2>Absences actives par membre</h2><div id="absencesByMemberStats"></div></div><div class="card"><h2>Retards actifs par membre</h2><div id="latesByMemberStats"></div></div></div></section>
     <section id="teamPage" class="hidden">
       <nav class="team-subnav" aria-label="Sections de gestion d’équipe">
@@ -122,6 +124,6 @@
 <dialog id="memberHistoryDialog" class="app-dialog member-history-dialog" aria-labelledby="memberHistoryTitle"></dialog>
 <dialog id="passwordRecoveryDialog" class="app-dialog member-dialog" aria-labelledby="passwordRecoveryTitle"></dialog>
 
-<script src="./app.js?v=20261113-24" defer></script>
+<script src="./app.js?v=20261113-25" defer></script>
 </body>
 </html>

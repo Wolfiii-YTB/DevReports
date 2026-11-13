@@ -230,6 +230,16 @@ create table if not exists public.team_messages (
 );
 alter table public.team_messages enable row level security;
 
+create table if not exists public.team_direct_messages (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references public.profiles(id) on delete cascade,
+  recipient_id uuid not null references public.profiles(id) on delete cascade,
+  body text not null check (length(trim(body)) between 1 and 2000),
+  created_at timestamptz not null default now(),
+  constraint team_direct_messages_distinct_members check (sender_id <> recipient_id)
+);
+alter table public.team_direct_messages enable row level security;
+
 create index if not exists tasks_board_idx on public.tasks(status, updated_at desc);
 create index if not exists tasks_assignee_idx on public.tasks(assigned_to, status);
 create index if not exists tasks_creator_idx on public.tasks(created_by, created_at desc);
@@ -240,6 +250,8 @@ create index if not exists late_notices_member_created_idx on public.late_notice
 create index if not exists late_notices_status_created_idx on public.late_notices(status, created_at desc);
 create index if not exists team_announcements_active_created_idx on public.team_announcements(active, starts_at, ends_at, created_at desc);
 create index if not exists team_messages_created_idx on public.team_messages(created_at desc);
+create index if not exists team_direct_messages_sender_idx on public.team_direct_messages(sender_id,recipient_id,created_at desc);
+create index if not exists team_direct_messages_recipient_idx on public.team_direct_messages(recipient_id,sender_id,created_at desc);
 
 create index if not exists reports_user_created_idx on public.reports(user_id, created_at desc);
 create index if not exists reports_created_idx on public.reports(created_at desc);
@@ -425,7 +437,7 @@ begin
     select tablename, policyname
     from pg_policies
     where schemaname = 'public'
-      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','member_sanctions','warning_disputes','sanction_disputes','tasks','task_comments','team_absences','late_notices','team_messages','team_announcements')
+      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','member_sanctions','warning_disputes','sanction_disputes','tasks','task_comments','team_absences','late_notices','team_messages','team_direct_messages','team_announcements')
   loop
     execute format('drop policy %I on public.%I', old_policy.policyname, old_policy.tablename);
   end loop;
@@ -442,7 +454,7 @@ for select to authenticated using (member_id = (select auth.uid()));
 revoke all on table public.profiles, public.reports, public.projects, public.team_roles,
   public.report_disputes, public.member_warnings, public.warning_disputes, public.sanction_disputes,
   public.tasks, public.task_comments, public.team_absences, public.late_notices,
-  public.team_messages, public.team_announcements
+  public.team_messages, public.team_direct_messages, public.team_announcements
   from anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.reports to authenticated;
@@ -456,7 +468,8 @@ grant select, insert, update, delete on public.tasks to authenticated;
 grant select, insert, delete on public.task_comments to authenticated;
 grant select, insert, update, delete on public.team_absences to authenticated;
 grant select, insert, update, delete on public.late_notices to authenticated;
-grant select, insert on public.team_messages to authenticated;
+grant select, insert, delete on public.team_messages to authenticated;
+grant select, insert, delete on public.team_direct_messages to authenticated;
 grant select, insert, update, delete on public.team_announcements to authenticated;
 
 drop policy if exists "admin manage warnings" on public.member_warnings;
@@ -521,12 +534,35 @@ using ((select public.is_active_member()));
 drop policy if exists "active members send own team messages" on public.team_messages;
 create policy "active members send own team messages" on public.team_messages for insert to authenticated
 with check ((select public.is_active_member()) and user_id = (select auth.uid()));
+drop policy if exists "participants read direct messages" on public.team_direct_messages;
+create policy "participants read direct messages" on public.team_direct_messages for select to authenticated
+using ((select public.is_active_member()) and ((select auth.uid()) = sender_id or (select auth.uid()) = recipient_id));
+drop policy if exists "active members send direct messages" on public.team_direct_messages;
+create policy "active members send direct messages" on public.team_direct_messages for insert to authenticated
+with check ((select public.is_active_member()) and sender_id = (select auth.uid()) and recipient_id <> (select auth.uid()) and exists (
+  select 1 from public.profiles recipient where recipient.id = recipient_id and recipient.status = 'active'
+));
+drop policy if exists "authors or admins delete direct messages" on public.team_direct_messages;
+create policy "authors or admins delete direct messages" on public.team_direct_messages for delete to authenticated
+using ((select public.is_admin()) or sender_id = (select auth.uid()));
+drop policy if exists "authors or admins delete team messages" on public.team_messages;
+create policy "authors or admins delete team messages" on public.team_messages for delete to authenticated
+using ((select public.is_admin()) or user_id = (select auth.uid()));
 
 do $$
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
      and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'team_messages') then
     execute 'alter publication supabase_realtime add table public.team_messages';
+  end if;
+end;
+$$;
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+     and not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'team_direct_messages') then
+    execute 'alter publication supabase_realtime add table public.team_direct_messages';
   end if;
 end;
 $$;
