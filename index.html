@@ -123,13 +123,13 @@
 </div>
 <div id="toast" class="toast hidden" role="status"></div>
 <div id="pdfPrintRoot" aria-hidden="true"></div>
-  <dialog id="appearanceDialog" class="app-dialog appearance-dialog"><form id="appearanceForm" class="dialog-content"><div class="dialog-icon">✦</div><h2>Personnaliser mon espace</h2><p>Ces préférences sont enregistrées sur ton compte et te suivent sur tes appareils.</p><label for="appearanceTheme">Thème</label><select id="appearanceTheme"><option value="light">Clair</option><option value="dark">Sombre</option></select><label for="appearanceAccent">Couleur principale</label><select id="appearanceAccent"><option value="#2f7655">Vert forêt</option><option value="#315f9b">Bleu</option><option value="#684a9b">Violet</option><option value="#a4475d">Rose profond</option><option value="#167c80">Turquoise</option></select><div class="dialog-actions"><button type="button" class="btn secondary" id="cancelAppearance">Annuler</button><button class="btn" type="submit">Enregistrer</button></div></form></dialog>
+  <dialog id="appearanceDialog" class="app-dialog appearance-dialog"><form id="appearanceForm" class="dialog-content"><div class="dialog-icon">✦</div><h2>Personnaliser mon espace</h2><p>Choisis un thème et ta couleur. L’aperçu se met à jour immédiatement ; les choix sont enregistrés sur ton compte.</p><label for="appearanceTheme">Thème</label><select id="appearanceTheme"><option value="light">Clair</option><option value="dark">Sombre</option></select><label for="appearanceAccent">Couleur principale</label><div class="appearance-color-control"><input id="appearanceAccent" type="color" value="#2f7655" aria-label="Choisir la couleur principale"><span>Choisis n’importe quelle couleur</span><output id="appearanceAccentValue" for="appearanceAccent">#2F7655</output></div><div class="dialog-actions"><button type="button" class="btn secondary" id="cancelAppearance">Annuler</button><button class="btn" type="submit">Enregistrer</button></div></form></dialog>
   <dialog id="appDialog" class="app-dialog" aria-labelledby="dialogTitle"></dialog>
 <dialog id="taskDialog" class="task-dialog" aria-labelledby="taskDialogTitle"></dialog>
 <dialog id="memberDialog" class="app-dialog member-dialog" aria-labelledby="memberDialogTitle"></dialog>
 <dialog id="memberHistoryDialog" class="app-dialog member-history-dialog" aria-labelledby="memberHistoryTitle"></dialog>
 <dialog id="passwordRecoveryDialog" class="app-dialog member-dialog" aria-labelledby="passwordRecoveryTitle"></dialog>
 
-<script src="./app.js?v=20261113-29" defer></script>
+<script src="./app.js?v=20261113-30" defer></script>
 </body>
 </html>
