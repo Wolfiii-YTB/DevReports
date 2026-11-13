@@ -179,7 +179,9 @@ begin
   if not exists (select 1 from public.team_roles where role_key = target_role) then
     raise exception 'Rôle introuvable';
   end if;
-  update public.profiles set roles = array_remove(roles, target_role);
+  update public.profiles
+  set roles = array_remove(roles, target_role)
+  where roles @> array[target_role];
   delete from public.team_roles where role_key = target_role;
 end;
 $$;
