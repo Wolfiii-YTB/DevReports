@@ -26,5 +26,8 @@ enabled = false
 [functions.admin-manage-user]
 verify_jwt = true
 
+[functions.login-by-identifier]
+verify_jwt = false
+
 [functions.manage-team-webhook]
 verify_jwt = true
