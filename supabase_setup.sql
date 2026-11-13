@@ -928,16 +928,16 @@ alter table public.profiles add constraint profiles_theme_preference_check
   check (theme_preference in ('light','dark'));
 alter table public.profiles drop constraint if exists profiles_accent_color_check;
 alter table public.profiles add constraint profiles_accent_color_check
-  check (accent_color in ('#2f7655','#315f9b','#684a9b','#a4475d','#167c80'));
+  check (accent_color ~ '^#[0-9a-fA-F]{6}$');
 
 create or replace function public.save_my_appearance(theme_value text, accent_value text)
 returns void language plpgsql security definer set search_path = '' as $$
 begin
   if auth.uid() is null then raise exception 'Connexion requise.'; end if;
   if theme_value not in ('light','dark') then raise exception 'Thème invalide.'; end if;
-  if accent_value not in ('#2f7655','#315f9b','#684a9b','#a4475d','#167c80') then raise exception 'Couleur invalide.'; end if;
+  if accent_value !~ '^#[0-9a-fA-F]{6}$' then raise exception 'Couleur invalide.'; end if;
   update public.profiles
-    set theme_preference = theme_value, accent_color = accent_value
+    set theme_preference = theme_value, accent_color = lower(accent_value)
     where id = auth.uid() and status = 'active';
   if not found then raise exception 'Compte actif introuvable.'; end if;
 end;
