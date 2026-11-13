@@ -110,7 +110,14 @@
   async function init(){
     if(!configured()){toast("Configuration nécessaire : ajoutez l'URL et la clé publique Supabase dans index.html.",true);return;}
     if(!window.supabase?.createClient){toast("La bibliothèque Supabase n’a pas pu être chargée. Vérifiez votre connexion Internet.",true);return;}
-    db=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+    // Keep each browser tab in its own auth session. Supabase defaults to
+    // localStorage plus a cross-tab BroadcastChannel, which can make one
+    // member's sign-in replace the session shown in another tab.
+    const legacyAuthKey="sb-bylwvlxxvgumvqgpwgod-auth-token";
+    try{localStorage.removeItem(legacyAuthKey)}catch{}
+    let authTabId=sessionStorage.getItem("devreports-auth-tab-id");
+    if(!authTabId){authTabId=window.crypto?.randomUUID?.()||`${Date.now()}-${Math.random().toString(36).slice(2)}`;sessionStorage.setItem("devreports-auth-tab-id",authTabId)}
+    db=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{storage:window.sessionStorage,storageKey:`devreports-auth-${authTabId}`,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
     db.auth.onAuthStateChange((event,session)=>{setTimeout(async()=>{if(event==="PASSWORD_RECOVERY"){passwordRecoveryActive=true;openPasswordRecoveryDialog();return}if(passwordRecoveryActive&&event==="USER_UPDATED")return;if(event==="SIGNED_OUT"||!session){disconnectTeamMessages();disconnectNotificationFeed();passwordRecoveryActive=false;currentUser=null;currentProfile=null;allReports=[];setView(false);$("rolePill").textContent="Espace sécurisé";return}if(event!=="INITIAL_SESSION"&&event!=="SIGNED_IN")return;try{await enterApp(session.user)}catch(e){console.error(e);currentUser=null;currentProfile=null;setView(false);$("rolePill").textContent="Espace sécurisé";toast("Chargement impossible : "+(e.message||"erreur Supabase"),true)}},0);});
   }
   $("loginBtn").onclick=async()=>{
