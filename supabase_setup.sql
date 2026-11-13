@@ -1,3 +1,5 @@
+RESET ROLE;
+
 -- DEVREPORTS — Installation Supabase
 -- À exécuter dans Supabase > SQL Editor. Relançable sans recréer les tables.
 
