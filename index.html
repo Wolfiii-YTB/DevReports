@@ -8,7 +8,7 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://bylwvlxxvgumvqgpwgod.supabase.co wss://bylwvlxxvgumvqgpwgod.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <link rel="stylesheet" href="./styles.css?v=20261113-19">
+  <link rel="stylesheet" href="./styles.css?v=20261113-20">
 </head>
 <body>
 <a class="skip-link" id="skipLink" href="#authView">Aller au contenu principal</a>
@@ -53,7 +53,12 @@
       <div class="stat"><b id="statMine">0</b><span>Mes rapports</span></div>
       <div class="stat"><b id="statRecent">0</b><span>Cette semaine</span></div><div class="stat admin-only hidden"><b id="statPeople">0</b><span>Membres actifs</span></div>
     </div>
-    <div id="dashboardPage"><section class="card dashboard-notifications"><div class="dashboard-notifications-head"><div><p class="eyebrow">Ton espace</p><h2>Notifications récentes</h2><p class="sub">Messages, avertissements et nouvelles de l’équipe.</p></div><button class="btn secondary" id="dashboardAllNotifications" type="button">Tout marquer lu</button></div><div id="notificationHomeList" class="notification-home-list"></div></section><div class="card"><h2>Bienvenue dans l’espace équipe</h2><p class="sub">Retrouve les dernières avancées, les blocages signalés et les contributions récentes.</p><div class="actions"><button class="btn" data-go-page="compose">Rédiger un rapport</button><button class="btn secondary" data-go-page="reports">Consulter les rapports</button></div><div id="dashboardStats"></div></div><section id="announcementHome" class="announcement-home hidden"><h2>Annonces pour toi</h2><div id="announcementHomeList" class="announcement-home-list"></div></section><div id="memberWarningsPanel" class="card hidden dashboard-warnings"><h2>Mes avertissements</h2><p class="sub">Les avertissements qui te concernent sont listés ici.</p><div id="myWarnings" class="warning-list"></div></div></div>
+    <div id="dashboardPage">
+      <div class="card"><h2>Bienvenue dans l’espace équipe</h2><p class="sub">Retrouve les dernières avancées, les blocages signalés et les contributions récentes.</p><div class="actions"><button class="btn" data-go-page="compose">Rédiger un rapport</button><button class="btn secondary" data-go-page="reports">Consulter les rapports</button></div><div id="dashboardStats"></div></div>
+      <section id="announcementHome" class="announcement-home hidden"><h2>Annonces pour toi</h2><div id="announcementHomeList" class="announcement-home-list"></div></section>
+      <section class="card dashboard-notifications"><div class="dashboard-notifications-head"><div><p class="eyebrow">Ton espace</p><h2>Notifications récentes</h2><p class="sub">Messages, avertissements et nouvelles de l’équipe.</p></div><button class="btn secondary" id="dashboardAllNotifications" type="button">Tout marquer lu</button></div><div id="notificationHomeList" class="notification-home-list"></div></section>
+      <div id="memberWarningsPanel" class="card hidden dashboard-warnings"><h2>Mes avertissements</h2><p class="sub">Les avertissements qui te concernent sont listés ici.</p><div id="myWarnings" class="warning-list"></div></div>
+    </div>
     <div id="composePage" class="hidden"><div class="grid" id="developerGrid">
       <div class="card">
         <h2>Nouveau rapport</h2><p class="sub">Décrivez précisément ce qui a avancé.</p>
@@ -125,6 +130,6 @@
 <dialog id="memberHistoryDialog" class="app-dialog member-history-dialog" aria-labelledby="memberHistoryTitle"></dialog>
 <dialog id="passwordRecoveryDialog" class="app-dialog member-dialog" aria-labelledby="passwordRecoveryTitle"></dialog>
 
-<script src="./app.js?v=20261113-27" defer></script>
+<script src="./app.js?v=20261113-28" defer></script>
 </body>
 </html>
