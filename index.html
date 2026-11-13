@@ -47,7 +47,7 @@
   <main id="appView" class="hidden" tabindex="-1">
     <div class="hero"><div class="eyebrow" id="welcomeEyebrow">Espace équipe</div><h1 id="welcomeTitle">Tableau de bord</h1><p id="welcomeText">Suivez les avancées du projet et gardez une trace claire du travail réalisé.</p></div>
     <div id="announcementBanner" class="announcement-banner hidden" aria-live="polite"></div>
-    <nav class="nav" id="mainNav" aria-label="Navigation principale"><button class="active nav-home" data-page="dashboard">Accueil</button><details class="nav-menu"><summary>Rapports & tâches</summary><div class="nav-submenu"><button data-page="compose">Nouveau rapport</button><button data-page="reports">Mes rapports</button><button data-page="tasks">Tâches</button></div></details><details class="nav-menu"><summary>Équipe</summary><div class="nav-submenu"><button data-page="presence">Absences & retards</button><button data-page="messages">Messagerie</button><button class="admin-only hidden" id="teamNav" data-page="team">Gestion équipe</button></div></details><details class="nav-menu admin-only hidden"><summary>Administration</summary><div class="nav-submenu"><button data-page="stats">Statistiques</button><button data-page="projects">Projets</button><button data-page="announcements">Annonces</button><button data-page="webhooks">Webhooks</button></div></details></nav>
+    <nav class="nav section-nav" id="mainNav" aria-label="Navigation principale"><button class="active" data-section="home">Accueil</button><button data-section="work">Rapports & tâches</button><button data-section="team">Équipe</button><button class="admin-only hidden" data-section="admin">Administration</button></nav><nav id="subNav" class="team-subnav site-subnav hidden" aria-label="Sous-pages"></nav>
     <div class="stats">
       <div class="stat"><b id="statTotal">0</b><span>Rapports visibles</span></div>
       <div class="stat"><b id="statMine">0</b><span>Mes rapports</span></div>
@@ -122,6 +122,6 @@
 <dialog id="memberHistoryDialog" class="app-dialog member-history-dialog" aria-labelledby="memberHistoryTitle"></dialog>
 <dialog id="passwordRecoveryDialog" class="app-dialog member-dialog" aria-labelledby="passwordRecoveryTitle"></dialog>
 
-<script src="./app.js?v=20261113-23" defer></script>
+<script src="./app.js?v=20261113-24" defer></script>
 </body>
 </html>
