@@ -705,6 +705,7 @@ for delete to authenticated using ((select public.is_admin()));
 create table if not exists public.team_webhooks (
   id uuid primary key default gen_random_uuid(),
   name text not null check (length(trim(name)) between 2 and 80),
+  username_mode text not null default 'named' check (username_mode in ('named', 'brand')),
   webhook_url text not null check (length(webhook_url) <= 2048),
   events text[] not null default '{}',
   created_by uuid references auth.users(id) on delete set null,

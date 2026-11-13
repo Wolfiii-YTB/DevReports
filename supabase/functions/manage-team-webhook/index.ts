@@ -35,11 +35,11 @@ function clip(value: unknown, max = 900) {
 function eventTitle(type: string) {
   return ({ report_created: "Nouveau rapport", absence_requested: "Demande d’absence", late_reported: "Retard signalé", absence_recorded: "Absence consignée", late_recorded: "Retard consigné", warning_created: "Avertissement attribué", announcement_published: "Nouvelle annonce" } as Record<string, string>)[type] || "Événement d’équipe";
 }
-async function sendWebhook(url: string, title: string, fields: Array<{ name: string; value: string; inline?: boolean }>) {
+async function sendWebhook(url: string, username: string, title: string, fields: Array<{ name: string; value: string; inline?: boolean }>) {
   let response: Response;
   try {
     response = await fetch(url, { method: "POST", redirect: "error", signal: AbortSignal.timeout(8000), headers: { "content-type": "application/json" }, body: JSON.stringify({
-      username: "DevReports", allowed_mentions: { parse: [] }, embeds: [{ title, color: 0x43845b, fields: fields.slice(0, 10).map((field) => ({ ...field, name: clip(field.name, 256), value: clip(field.value, 1024) })), footer: { text: "DevReports · Notification d’équipe" }, timestamp: new Date().toISOString() }],
+      username: clip(username, 80), allowed_mentions: { parse: [] }, embeds: [{ title, color: 0x43845b, fields: fields.slice(0, 10).map((field) => ({ ...field, name: clip(field.name, 256), value: clip(field.value, 1024) })), footer: { text: "DevReports · Notification d’équipe" }, timestamp: new Date().toISOString() }],
     }) });
   } catch {
     throw new PublicWebhookError("Connexion à Discord impossible ou expirée. Réessaie dans un instant.");
@@ -72,7 +72,7 @@ Deno.serve(async (request) => {
     if (["get", "save", "delete", "test"].includes(body?.action)) {
       if (!isAdmin) return reply({ error: "Action réservée à un administrateur actif." }, 403, origin);
       if (body.action === "get") {
-        const { data, error } = await admin.from("team_webhooks").select("id,name,events,created_at,updated_at").order("created_at", { ascending: true });
+        const { data, error } = await admin.from("team_webhooks").select("id,name,username_mode,events,created_at,updated_at").order("created_at", { ascending: true });
         if (error) throw error;
         return reply({ webhooks: data || [] }, 200, origin);
       }
@@ -85,16 +85,18 @@ Deno.serve(async (request) => {
       }
       if (body.action === "save") {
         const name = typeof body.name === "string" ? body.name.trim() : "";
+        const usernameMode = body.usernameMode === "named" ? "named" : body.usernameMode === "brand" ? "brand" : "";
         const url = typeof body.webhookUrl === "string" ? body.webhookUrl.trim() : "";
         const events = Array.isArray(body.events) ? [...new Set(body.events.filter((event: unknown) => typeof event === "string" && eventTypes.includes(event)))] : [];
         if (name.length < 2 || name.length > 80) return reply({ error: "Donne un nom de 2 à 80 caractères à ce webhook." }, 400, origin);
+        if (!usernameMode) return reply({ error: "Choisis comment le nom du webhook doit apparaître dans Discord." }, 400, origin);
         if (!events.length) return reply({ error: "Sélectionne au moins un événement autorisé." }, 400, origin);
         if (url && (url.length > 2048 || !validWebhook(url))) return reply({ error: "URL refusée. Colle une URL de webhook Discord HTTPS valide." }, 400, origin);
         if (webhookId) {
           const { data: existing, error: existingError } = await admin.from("team_webhooks").select("id").eq("id", webhookId).maybeSingle();
           if (existingError) throw existingError;
           if (!existing) return reply({ error: "Ce webhook n’existe plus. Actualise la page." }, 404, origin);
-          const values: Record<string, unknown> = { name, events, updated_at: new Date().toISOString() };
+          const values: Record<string, unknown> = { name, username_mode: usernameMode, events, updated_at: new Date().toISOString() };
           if (url) values.webhook_url = url;
           const { error } = await admin.from("team_webhooks").update(values).eq("id", webhookId);
           if (error) throw error;
@@ -104,15 +106,15 @@ Deno.serve(async (request) => {
         const { count, error: countError } = await admin.from("team_webhooks").select("id", { count: "exact", head: true });
         if (countError) throw countError;
         if ((count || 0) >= 20) return reply({ error: "Limite de 20 webhooks atteinte." }, 400, origin);
-        const { data: created, error } = await admin.from("team_webhooks").insert({ name, webhook_url: url, events, created_by: auth.user.id }).select("id").single();
+        const { data: created, error } = await admin.from("team_webhooks").insert({ name, username_mode: usernameMode, webhook_url: url, events, created_by: auth.user.id }).select("id").single();
         if (error) throw error;
         return reply({ ok: true, updated: false, id: created.id }, 200, origin);
       }
       if (!webhookId) return reply({ error: "Choisis le webhook à tester." }, 400, origin);
-      const { data: config, error: configError } = await admin.from("team_webhooks").select("webhook_url").eq("id", webhookId).maybeSingle();
+      const { data: config, error: configError } = await admin.from("team_webhooks").select("name,username_mode,webhook_url").eq("id", webhookId).maybeSingle();
       if (configError) throw configError;
       if (!config) return reply({ error: "Ce webhook n’existe plus. Actualise la page." }, 404, origin);
-      await sendWebhook(config.webhook_url, "Test DevReports", [{ name: "État", value: "La connexion Discord fonctionne." }, { name: "Envoyé par", value: clip(profile.nickname || profile.display_name, 150) }]);
+      await sendWebhook(config.webhook_url, config.username_mode === "brand" ? "DevReports" : `${config.name} | DevReports`, "Test DevReports", [{ name: "État", value: "La connexion Discord fonctionne." }, { name: "Envoyé par", value: clip(profile.nickname || profile.display_name, 150) }]);
       return reply({ ok: true }, 200, origin);
     }
 
@@ -120,7 +122,7 @@ Deno.serve(async (request) => {
     const eventType = body.eventType as string;
     const adminOnly = ["absence_recorded", "late_recorded", "warning_created", "announcement_published"].includes(eventType);
     if (adminOnly && !isAdmin) return reply({ error: "Action réservée à un administrateur." }, 403, origin);
-    const { data: configs, error: configError } = await admin.from("team_webhooks").select("id,name,webhook_url,events");
+    const { data: configs, error: configError } = await admin.from("team_webhooks").select("id,name,username_mode,webhook_url,events");
     if (configError) throw configError;
     const destinations = (configs || []).filter((config) => Array.isArray(config.events) && config.events.includes(eventType));
     if (!destinations.length) return reply({ ok: true, skipped: true }, 200, origin);
@@ -157,7 +159,7 @@ Deno.serve(async (request) => {
       if (deliveryError?.code === "23505") return { status: "duplicate" as const, name: config.name };
       if (deliveryError) throw deliveryError;
       try {
-        await sendWebhook(config.webhook_url, eventTitle(eventType), fields);
+        await sendWebhook(config.webhook_url, config.username_mode === "brand" ? "DevReports" : `${config.name} | DevReports`, eventTitle(eventType), fields);
         return { status: "sent" as const, name: config.name };
       } catch (error) {
         await admin.from("team_webhook_deliveries").delete().eq("webhook_id", config.id).eq("event_type", eventType).eq("record_id", body.recordId);
