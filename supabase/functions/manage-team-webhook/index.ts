@@ -1,0 +1,132 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+function secret(name: string, groupedName: string) {
+  const value = Deno.env.get(name);
+  if (value) return value;
+  try {
+    const grouped = JSON.parse(Deno.env.get(groupedName) || "{}");
+    return grouped.default || Object.values(grouped)[0] || "";
+  } catch { return ""; }
+}
+const serviceKey = secret("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEYS");
+const anonKey = secret("SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEYS");
+const allowedOrigins = (Deno.env.get("ALLOWED_ORIGINS") || "").split(",").map((item) => item.trim()).filter(Boolean);
+const eventTypes = ["report_created", "absence_requested", "late_reported", "absence_recorded", "late_recorded", "warning_created", "announcement_published"];
+
+function reply(body: unknown, status: number, origin: string) {
+  return new Response(JSON.stringify(body), { status, headers: {
+    "content-type": "application/json; charset=utf-8", "access-control-allow-origin": origin,
+    "access-control-allow-headers": "authorization, apikey, content-type, x-client-info, x-supabase-api-version",
+    "access-control-allow-methods": "POST, OPTIONS", "vary": "Origin",
+  } });
+}
+function validWebhook(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && (url.hostname === "discord.com" || url.hostname === "discordapp.com") && /^\/api\/webhooks\/\d+\/[A-Za-z0-9._-]+\/?$/.test(url.pathname) && !url.search && !url.hash;
+  } catch { return false; }
+}
+function clip(value: unknown, max = 900) {
+  const text = String(value ?? "").trim();
+  return (text || "—").slice(0, max);
+}
+function eventTitle(type: string) {
+  return ({ report_created: "Nouveau rapport", absence_requested: "Demande d’absence", late_reported: "Retard signalé", absence_recorded: "Absence consignée", late_recorded: "Retard consigné", warning_created: "Avertissement attribué", announcement_published: "Nouvelle annonce" } as Record<string, string>)[type] || "Événement d’équipe";
+}
+async function sendWebhook(url: string, title: string, fields: Array<{ name: string; value: string; inline?: boolean }>) {
+  const response = await fetch(url, { method: "POST", redirect: "error", signal: AbortSignal.timeout(8000), headers: { "content-type": "application/json" }, body: JSON.stringify({
+    username: "DevReports", allowed_mentions: { parse: [] }, embeds: [{ title, color: 0x43845b, fields: fields.slice(0, 10).map((field) => ({ ...field, name: clip(field.name, 256), value: clip(field.value, 1024) })), footer: { text: "DevReports · Notification d’équipe" }, timestamp: new Date().toISOString() }],
+  }) });
+  if (!response.ok) throw new Error("Le service Discord a refusé le message.");
+}
+
+Deno.serve(async (request) => {
+  const origin = request.headers.get("origin") || "";
+  if (!allowedOrigins.includes(origin)) return reply({ error: "Origine non autorisée." }, 403, origin);
+  if (request.method === "OPTIONS") return reply({}, 200, origin);
+  if (request.method !== "POST") return reply({ error: "Méthode non autorisée." }, 405, origin);
+  try {
+    if (!supabaseUrl || !serviceKey || !anonKey) return reply({ error: "Fonction serveur non configurée." }, 503, origin);
+    const token = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+    if (!token) return reply({ error: "Connexion requise." }, 401, origin);
+    const caller = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: auth, error: authError } = await caller.auth.getUser(token);
+    if (authError || !auth.user) return reply({ error: "Session invalide ou expirée." }, 401, origin);
+    const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: profile, error: profileError } = await admin.from("profiles").select("role,status,display_name,nickname").eq("id", auth.user.id).single();
+    if (profileError || profile?.status !== "active") return reply({ error: "Compte inactif ou profil indisponible." }, 403, origin);
+    const isAdmin = profile.role === "admin";
+    const body = await request.json();
+
+    if (["get", "save", "delete", "test"].includes(body?.action)) {
+      if (!isAdmin) return reply({ error: "Action réservée à un administrateur actif." }, 403, origin);
+      if (body.action === "get") {
+        const { data, error } = await admin.from("team_webhook_config").select("events").eq("id", true).maybeSingle();
+        if (error) throw error;
+        return reply({ configured: !!data, events: data?.events || [] }, 200, origin);
+      }
+      if (body.action === "delete") {
+        const { error } = await admin.from("team_webhook_config").delete().eq("id", true);
+        if (error) throw error;
+        return reply({ ok: true }, 200, origin);
+      }
+      const { data: config, error: configError } = await admin.from("team_webhook_config").select("webhook_url,events").eq("id", true).maybeSingle();
+      if (configError) throw configError;
+      if (body.action === "save") {
+        const url = typeof body.webhookUrl === "string" ? body.webhookUrl.trim() : "";
+        const events = Array.isArray(body.events) ? [...new Set(body.events.filter((event: unknown) => typeof event === "string" && eventTypes.includes(event)))] : [];
+        if (!events.length) return reply({ error: "Sélectionne au moins un événement autorisé." }, 400, origin);
+        if (url && !validWebhook(url)) return reply({ error: "URL refusée. Colle une URL de webhook Discord HTTPS valide." }, 400, origin);
+        if (!url && !config) return reply({ error: "Colle l’URL du webhook Discord." }, 400, origin);
+        const { error } = await admin.from("team_webhook_config").upsert({ id: true, webhook_url: url || config.webhook_url, events, updated_by: auth.user.id, updated_at: new Date().toISOString() });
+        if (error) throw error;
+        return reply({ ok: true, updated: !url }, 200, origin);
+      }
+      if (!config) return reply({ error: "Aucun webhook n’est configuré." }, 404, origin);
+      await sendWebhook(config.webhook_url, "Test DevReports", [{ name: "État", value: "La connexion Discord fonctionne." }, { name: "Envoyé par", value: clip(profile.nickname || profile.display_name, 150) }]);
+      return reply({ ok: true }, 200, origin);
+    }
+
+    if (body?.action !== "notify" || !eventTypes.includes(body?.eventType) || typeof body.recordId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.recordId)) return reply({ error: "Événement invalide." }, 400, origin);
+    const eventType = body.eventType as string;
+    const adminOnly = ["absence_recorded", "late_recorded", "warning_created", "announcement_published"].includes(eventType);
+    if (adminOnly && !isAdmin) return reply({ error: "Action réservée à un administrateur." }, 403, origin);
+    const { data: config, error: configError } = await admin.from("team_webhook_config").select("webhook_url,events").eq("id", true).maybeSingle();
+    if (configError) throw configError;
+    if (!config || !config.events.includes(eventType)) return reply({ ok: true, skipped: true }, 200, origin);
+
+    const spec: Record<string, { table: string; columns: string }> = {
+      report_created: { table: "reports", columns: "id,user_id,project,title,category,work,created_at" },
+      absence_requested: { table: "team_absences", columns: "id,user_id,start_date,end_date,reason,status" },
+      late_reported: { table: "late_notices", columns: "id,user_id,session_at,expected_delay_minutes,reason,status" },
+      absence_recorded: { table: "team_absences", columns: "id,user_id,start_date,end_date,reason,status,absence_kind" },
+      late_recorded: { table: "late_notices", columns: "id,user_id,session_at,expected_delay_minutes,reason,status,late_kind" },
+      warning_created: { table: "member_warnings", columns: "id,member_id,admin_name,motif,description,created_at" },
+      announcement_published: { table: "team_announcements", columns: "id,title,body,created_by,created_at" },
+    };
+    const { table, columns } = spec[eventType];
+    const { data: row, error: rowError } = await admin.from(table).select(columns).eq("id", body.recordId).maybeSingle();
+    if (rowError) throw rowError;
+    if (!row) return reply({ error: "Événement introuvable." }, 404, origin);
+    const ownerId = (row.user_id || row.created_by || row.admin_id || "") as string;
+    if (ownerId !== auth.user.id && !isAdmin) return reply({ error: "Tu ne peux pas notifier cet événement." }, 403, origin);
+    let memberName = "";
+    const memberId = (row.user_id || row.member_id || "") as string;
+    if (memberId) {
+      const { data: member } = await admin.from("profiles").select("display_name,nickname").eq("id", memberId).maybeSingle();
+      memberName = member?.nickname || member?.display_name || "Membre";
+    }
+    let fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+    if (eventType === "report_created") fields = [{ name: "Membre", value: memberName }, { name: "Projet", value: clip(row.project, 180), inline: true }, { name: "Catégorie", value: clip(row.category, 180), inline: true }, { name: "Rapport", value: clip(row.title, 220) }, { name: "Travail réalisé", value: clip(row.work, 900) }];
+    else if (eventType === "absence_requested" || eventType === "absence_recorded") fields = [{ name: "Membre", value: memberName }, { name: "Période", value: `${row.start_date} → ${row.end_date}`, inline: true }, { name: "Statut", value: eventType === "absence_recorded" ? "Absence non justifiée consignée" : "Demande transmise", inline: true }, { name: "Motif / contexte", value: clip(row.reason) }];
+    else if (eventType === "late_reported" || eventType === "late_recorded") fields = [{ name: "Membre", value: memberName }, { name: "Session", value: clip(row.session_at, 180), inline: true }, { name: "Durée", value: `${row.expected_delay_minutes} minutes`, inline: true }, { name: "Statut", value: eventType === "late_recorded" ? `Retard consigné (${row.late_kind || "non précisé"})` : "Retard signalé", inline: true }, { name: "Motif / contexte", value: clip(row.reason) }];
+    else if (eventType === "warning_created") fields = [{ name: "Membre", value: memberName }, { name: "Attribué par", value: clip(row.admin_name, 180), inline: true }, { name: "Motif", value: clip(row.motif, 220) }, { name: "Description", value: clip(row.description) }];
+    else fields = [{ name: "Titre", value: clip(row.title, 220) }, { name: "Annonce", value: clip(row.body) }];
+    await sendWebhook(config.webhook_url, eventTitle(eventType), fields);
+    return reply({ ok: true }, 200, origin);
+  } catch (error) {
+    console.error("manage-team-webhook failed");
+    return reply({ error: "Échec de l’opération webhook. Vérifie la configuration SQL, la fonction Supabase et le webhook Discord." }, 400, origin);
+  }
+});
