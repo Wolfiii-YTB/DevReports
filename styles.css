@@ -44,4 +44,37 @@
     @media(max-width:520px){.tasks-toolbar{display:grid;grid-template-columns:1fr}.tasks-toolbar .btn{width:100%}.tasks-filters{grid-template-columns:1fr}.task-form{padding:18px}.task-form-actions{flex-direction:column-reverse}.task-form-actions-right{width:100%}.task-form-actions-right .btn{flex:1}.task-comment-form{grid-template-columns:1fr}.task-check-add{grid-template-columns:1fr}.task-column{padding:10px}}
     .dashboard-warnings{margin-top:16px}.btn:focus-visible,.nav button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #65a77a;outline-offset:2px}.skip-link{position:absolute;left:12px;top:-60px;padding:10px 14px;border-radius:10px;background:var(--panel);color:var(--text);z-index:20}.skip-link:focus{top:12px}
     @media(max-width:520px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.person{grid-template-columns:1fr 1fr}.person>span:first-child{grid-column:1/-1}.warning-card{padding:15px}.warning-card-head{gap:8px}.warning-actions .btn{flex:1}}
+    /* Team management: roomier cards, readable role tags and distinct actions. */
+    #teamPage{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:18px}
+    #teamPage>.card:nth-child(2){grid-column:1/-1}
+    #membersList{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:14px;margin-top:14px}
+    #teamPage>.card{background:linear-gradient(145deg,var(--panel),color-mix(in srgb,var(--panel2) 44%,var(--panel)));box-shadow:0 16px 38px #26352910}
+    .member-card{margin:0;padding:18px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,var(--panel),var(--panel2));box-shadow:0 8px 22px #2635290c;transition:transform .2s,border-color .2s,box-shadow .2s}
+    .member-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--accent) 40%,var(--line));box-shadow:0 14px 28px #26352914}
+    .member-head{align-items:flex-start;padding-bottom:12px;border-bottom:1px solid var(--line)}
+    .member-head strong{font-size:16px;letter-spacing:-.2px}.member-email{font-size:12px;margin-top:5px;overflow-wrap:anywhere}
+    .member-controls{display:flex;flex-direction:column;align-items:stretch;gap:13px}
+    .member-controls>select{max-width:100%;min-height:44px;border-radius:13px}
+    .member-controls>.muted{padding:8px 0;font-size:12px}
+    .role-chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:7px}
+    .role-caption{grid-column:1/-1;width:100%;font-size:11px;letter-spacing:.4px;text-transform:uppercase}
+    .role-chip{width:100%;min-width:0;justify-content:flex-start;padding:8px 10px;border-radius:12px;background:var(--panel2);font-size:11px;line-height:1.3}
+    .role-chip input{flex:0 0 15px}
+    .member-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding-top:2px}
+    .member-actions .btn{min-height:42px;padding:9px 10px;border-radius:12px;font-size:11px;line-height:1.25;white-space:normal}
+    .mail-action{background:#e8f0fa!important;color:#355b83!important;border:1px solid #d2e0f0!important}
+    body.dark{--bg:#1e2a23;--panel:#2a382f;--panel2:#344438;--line:#506151;--text:#f3f6f0;--muted:#c2cdc3;background:radial-gradient(ellipse at 12% 0%,#34483a 0,transparent 35%),radial-gradient(ellipse at 90% 12%,#2b3a31 0,transparent 32%),var(--bg)}
+    body.dark input,body.dark textarea,body.dark select{background:#243128;color:var(--text);border-color:#586b5b}
+    body.dark .member-card{background:linear-gradient(145deg,#303f34,#35483a);border-color:#526653;box-shadow:0 12px 28px #0c150f35}
+    body.dark .member-head{border-color:#536353}body.dark .role-chip{background:#29382e;border-color:#566756;color:#e2e9e1}
+    body.dark .role-chip:has(input:checked){background:#45634b;border-color:#83a789;color:#f2f8f0}
+    body.dark .mail-action{background:#344a5c!important;color:#e0efff!important;border-color:#4c6680!important}
+    body.dark .warning-card{background:linear-gradient(145deg,#303f34,#28372e);border-color:#526653}
+    body.dark .warning-description{background:#253329;color:#edf3ec}
+    body.dark .empty{background:#2b392f;border-color:#566756;color:#dce5dc}
+    body.dark .task-column{background:#26352b}body.dark .task-card{background:#334338;border-color:#536454}
+    body.dark .task-column.drag-over{background:#3b5540;border-color:#8cab8f}
+    body.dark .dialog-icon{background:#3c5542;color:#d9efdc}
+    @media(max-width:760px){#teamPage{grid-template-columns:1fr}#teamPage>.card:nth-child(2){grid-column:auto}#membersList{grid-template-columns:1fr}.member-actions{grid-template-columns:1fr 1fr}}
+    @media(max-width:430px){.member-actions{grid-template-columns:1fr}.member-card{padding:15px}#teamPage>.card{padding:18px}}
   

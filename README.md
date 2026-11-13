@@ -10,6 +10,7 @@ Application statique d’équipe pour les rapports, les avertissements et le sui
 - Tableau Kanban partagé : tâches à planifier, à faire, en cours, à vérifier et terminées.
 - Attribution, échéances, priorités, étiquettes, checklist et commentaires sur les tâches.
 - Rôles personnalisés avec attribution multiple, et édition sécurisée du nom, pseudo, e-mail et mot de passe des comptes.
+- Envoi d’un lien Supabase de réinitialisation de mot de passe; aucun mot de passe temporaire n’est transmis par e-mail.
 - Gestion des projets, interface responsive en thème clair/sombre et export JSON des données accessibles.
 
 ## Configuration et publication
@@ -18,6 +19,7 @@ Application statique d’équipe pour les rapports, les avertissements et le sui
 2. Vérifie `SUPABASE_URL` et `SUPABASE_ANON_KEY` au début de `app.js`. Seule la clé publique `publishable`/`anon` est prévue dans le navigateur. **Ne place jamais une clé `secret` ou `service_role` dans le dépôt.**
 3. Publie les fichiers `index.html`, `app.js`, `styles.css` et `supabase_setup.sql` sur GitHub Pages ou un hébergeur statique.
 4. Dans **Supabase → Authentication → URL Configuration**, ajoute l’URL publiée et configure la confirmation e-mail/CAPTCHA selon les besoins du studio.
+   Ajoute aussi `https://wolfiii-ytb.github.io/DevReports/` à **Redirect URLs** pour que les liens de réinitialisation reviennent vers le site.
 5. Crée le compte admin et attribue le rôle depuis Supabase avec accès SQL, jamais depuis le formulaire public. La requête modèle est commentée à la fin du script SQL.
 
 ### Fonction sécurisée d’administration des comptes
@@ -28,7 +30,7 @@ Le changement d’e-mail et de mot de passe passe par `supabase/functions/admin-
 2. Dans Supabase **Settings → API**, copie l’origine publique du site (par ex. `https://<compte>.github.io`, sans `/DevReports/`) et configure-la : `supabase secrets set ALLOWED_ORIGINS=https://<compte>.github.io`.
 3. Déploie la fonction : `supabase functions deploy admin-manage-user`.
 
-Les environnements Supabase injectent `SUPABASE_URL`, `SUPABASE_ANON_KEY` et `SUPABASE_SERVICE_ROLE_KEY` à l’exécution. Ne saisis et ne copie jamais la clé de service dans `app.js`, un dépôt, une capture d’écran ou un message. Si l’adresse e-mail change, Supabase peut demander sa confirmation par e-mail selon les réglages Auth.
+Les environnements Supabase injectent les clés de projet à l’exécution. Ne saisis et ne copie jamais une clé secrète dans `app.js`, un dépôt, une capture d’écran ou un message. Si l’adresse e-mail change, Supabase peut demander sa confirmation par e-mail selon les réglages Auth.
 
 Si le script SQL a déjà été exécuté auparavant, relance sa dernière version complète. Les développeurs actifs peuvent voir les profils actifs (identifiant et nom uniquement dans les requêtes de l’application), les tâches de l’équipe et leurs commentaires. Seuls les admins peuvent gérer les comptes, les projets et les vues d’administration. La clé publique ne protège pas les données à elle seule : les politiques RLS sont indispensables.
 

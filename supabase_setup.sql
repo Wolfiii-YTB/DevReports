@@ -53,7 +53,12 @@ create table if not exists public.team_roles (
 );
 alter table public.team_roles enable row level security;
 insert into public.team_roles(role_key,label) values
-  ('developer','Développeur'),('moderator','Modérateur'),('administrator','Admin serveur'),('discord_admin','Admin Discord'),('staff','Staff'),('community','Communauté')
+  ('developer','Développeur'),('scripter','Scripteur'),('builder','Constructeur / Builder'),
+  ('ui_ux','UI / UX Designer'),('modeler','Modeleur 3D'),('animator','Animateur'),
+  ('sound_designer','Audio / effets'),('tester_qa','Testeur QA'),('graphic_designer','Graphiste'),
+  ('translator','Traducteur'),('moderator','Modérateur'),('administrator','Admin serveur'),
+  ('discord_admin','Admin Discord'),('staff','Staff'),('community','Communauté'),
+  ('community_manager','Community Manager'),('support','Support'),('event_manager','Organisateur d’événements')
 on conflict (role_key) do nothing;
 create table if not exists public.report_disputes(id uuid primary key default gen_random_uuid(),report_id uuid not null references public.reports(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,reason text not null,status text not null default 'open',created_at timestamptz not null default now());
 alter table public.report_disputes enable row level security;
