@@ -47,7 +47,10 @@ Deno.serve(async (request) => {
     if (!allowed) return reply({ error: "Identifiant ou mot de passe incorrect." }, 401, origin);
 
     const { data: authUser, error: userError } = await admin.auth.admin.getUserById(profile.id);
-    if (userError || !authUser.user?.email || authUser.user.email.endsWith("@devreports.invalid")) {
+    // Identifier-only accounts use an internal Auth email
+    // (`id-<identifier>@devreports.invalid`). It is deliberately hidden from
+    // the member, but it is still the email/password identity Auth validates.
+    if (userError || !authUser.user?.email) {
       return reply({ error: "Identifiant ou mot de passe incorrect." }, 401, origin);
     }
     const authResponse = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
