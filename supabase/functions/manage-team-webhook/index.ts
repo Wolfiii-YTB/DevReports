@@ -55,7 +55,7 @@ function safeWebhookContent(mention: string, content: string) {
   return [mention, safe].filter(Boolean).join("\n").slice(0, 2000) || undefined;
 }
 function renderTemplate(template: string, values: Record<string, string>) {
-  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_match, key: string) => values[key] ?? "").slice(0, 1800);
+  return template.replace(/\{([\p{L}0-9_]+)\}/gu, (_match, key: string) => values[key] ?? "").slice(0, 1800);
 }
 function eventTitle(type: string) {
   return ({ report_created: "Nouveau rapport", absence_requested: "Demande d’absence", late_reported: "Retard signalé", absence_recorded: "Absence consignée", late_recorded: "Retard consigné", warning_created: "Avertissement attribué", announcement_published: "Nouvelle annonce" } as Record<string, string>)[type] || "Événement d’équipe";
@@ -160,7 +160,7 @@ Deno.serve(async (request) => {
         const message = typeof body.message === "string" ? body.message.trim() : "";
         if (!message || message.length > 1800) return reply({ error: "Écris un message de 1 à 1800 caractères." }, 400, origin);
         const pseudo = clip(profile.nickname || profile.display_name || auth.user.email, 120);
-        await sendWebhook(config.webhook_url, config.username_mode === "brand" ? "DevReports" : `${config.name} | DevReports`, config.avatar_url, "Message de l’équipe", [], { content: renderTemplate(message, { pseudo, pseudo_personneconcernee: pseudo, date: new Date().toLocaleString("fr-FR") }), mention: config.mention_target || "", imageUrl: config.embed_image_url, extraEmbeds: config.extra_embeds || [] });
+        await sendWebhook(config.webhook_url, config.username_mode === "brand" ? "DevReports" : `${config.name} | DevReports`, config.avatar_url, "Message de l’équipe", [], { content: renderTemplate(message, { pseudo, pseudo_personneconcernee: pseudo, pseudo_personneconerné: pseudo, pseudo_personneconcerne: pseudo, date: new Date().toLocaleString("fr-FR") }), mention: config.mention_target || "", imageUrl: config.embed_image_url, extraEmbeds: config.extra_embeds || [] });
         return reply({ ok: true }, 200, origin);
       }
       await sendWebhook(config.webhook_url, config.username_mode === "brand" ? "DevReports" : `${config.name} | DevReports`, config.avatar_url, "Test DevReports", [{ name: "État", value: "La connexion Discord fonctionne." }, { name: "Envoyé par", value: clip(profile.nickname || profile.display_name, 150) }], { mention: config.mention_target || "", imageUrl: config.embed_image_url, extraEmbeds: config.extra_embeds || [] });
@@ -208,7 +208,7 @@ Deno.serve(async (request) => {
       if (deliveryError?.code === "23505") return { status: "duplicate" as const, name: config.name };
       if (deliveryError) throw deliveryError;
       try {
-        const templateValues = { pseudo: memberName, pseudo_personneconcernee: memberName, projet: clip(row.project || "", 150), project: clip(row.project || "", 150), titre: clip(row.title || row.motif || "", 200), title: clip(row.title || row.motif || "", 200), categorie: clip(row.category || "", 120), category: clip(row.category || "", 120), description: clip(row.description || row.work || row.body || row.reason || "", 800), work: clip(row.work || "", 800), reason: clip(row.reason || row.motif || "", 500), date: new Date().toLocaleString("fr-FR") };
+        const templateValues = { pseudo: memberName, pseudo_personneconcernee: memberName, pseudo_personneconerné: memberName, pseudo_personneconcerne: memberName, projet: clip(row.project || "", 150), project: clip(row.project || "", 150), titre: clip(row.title || row.motif || "", 200), title: clip(row.title || row.motif || "", 200), categorie: clip(row.category || "", 120), category: clip(row.category || "", 120), description: clip(row.description || row.work || row.body || row.reason || "", 800), work: clip(row.work || "", 800), reason: clip(row.reason || row.motif || "", 500), date: new Date().toLocaleString("fr-FR") };
         const content = config.message_template ? renderTemplate(config.message_template, templateValues) : "";
         await sendWebhook(config.webhook_url, config.username_mode === "brand" ? "DevReports" : `${config.name} | DevReports`, config.avatar_url, eventTitle(eventType), fields, { content, mention: config.mention_target || "", imageUrl: config.embed_image_url, extraEmbeds: config.extra_embeds || [] });
         return { status: "sent" as const, name: config.name };
