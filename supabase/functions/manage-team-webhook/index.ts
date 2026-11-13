@@ -79,7 +79,7 @@ async function sendWebhook(url: string, username: string, avatarUrl: string | nu
 
 Deno.serve(async (request) => {
   const origin = request.headers.get("origin") || "";
-  if (!allowedOrigins.includes(origin)) return reply({ error: "Origine non autorisée." }, 403, origin);
+  if (!allowedOrigins.includes(origin)) return reply({ error: "Origine non autorisée." }, 403, "");
   if (request.method === "OPTIONS") return reply({}, 200, origin);
   if (request.method !== "POST") return reply({ error: "Méthode non autorisée." }, 405, origin);
   try {

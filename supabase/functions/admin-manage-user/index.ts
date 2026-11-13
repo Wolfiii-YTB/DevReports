@@ -20,6 +20,8 @@ function response(body: unknown, status = 200, origin = "") {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store, max-age=0",
+      "x-content-type-options": "nosniff",
       "access-control-allow-origin": origin,
       "access-control-allow-headers": "authorization, apikey, content-type, x-client-info, x-supabase-api-version",
       "access-control-allow-methods": "POST, OPTIONS",
