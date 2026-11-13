@@ -145,10 +145,8 @@ Deno.serve(async (request) => {
     const { data: targetData, error: targetError } = await admin.auth.admin.getUserById(userId);
     if (targetError || !targetData.user) return response({ error: "Compte introuvable." }, 404, origin);
     const emailChanged = Boolean(email && email.toLowerCase() !== (targetData.user.email || "").toLowerCase());
-    const { data: targetProfile } = await admin.from("profiles").select("login_identifier").eq("id", userId).maybeSingle();
-    const identifierChanged = identifier !== targetProfile?.login_identifier;
-    if (primaryAdmin?.id === userId && (emailChanged || password || identifierChanged)) {
-      return response({ error: "Le compte administrateur principal ne peut pas être modifié." }, 403, origin);
+    if (primaryAdmin?.id === userId && (emailChanged || password)) {
+      return response({ error: "L’adresse e-mail et le mot de passe du compte administrateur principal sont protégés." }, 403, origin);
     }
     const { data: duplicateIdentifier } = await admin.from("profiles").eq("login_identifier", identifier).neq("id", userId).limit(1).maybeSingle();
     if (duplicateIdentifier) return response({ error: "Cet identifiant est déjà utilisé par un autre membre." }, 409, origin);
