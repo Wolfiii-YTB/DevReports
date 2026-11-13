@@ -144,6 +144,9 @@ create table if not exists public.tasks (
   updated_at timestamptz not null default now()
 );
 alter table public.tasks add column if not exists position bigint not null default 0;
+alter table public.tasks add column if not exists assignee_ids uuid[] not null default '{}'::uuid[];
+update public.tasks set assignee_ids=array[assigned_to]::uuid[] where assigned_to is not null and cardinality(assignee_ids)=0;
+create index if not exists tasks_assignee_ids_idx on public.tasks using gin(assignee_ids);
 alter table public.tasks enable row level security;
 
 create table if not exists public.task_comments (
@@ -161,13 +164,21 @@ create table if not exists public.team_absences (
   start_date date not null,
   end_date date not null,
   reason text not null check (length(trim(reason)) between 3 and 2000),
-  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  status text not null default 'pending' check (status in ('pending','approved','rejected','recorded')),
+  absence_kind text not null default 'planned' check (absence_kind in ('planned','unjustified')),
+  recorded_by uuid references public.profiles(id) on delete set null,
   admin_note text not null default '',
   reviewed_by uuid references public.profiles(id) on delete set null,
   reviewed_at timestamptz,
   created_at timestamptz not null default now(),
   check (end_date >= start_date)
 );
+alter table public.team_absences add column if not exists absence_kind text not null default 'planned';
+alter table public.team_absences add column if not exists recorded_by uuid references public.profiles(id) on delete set null;
+alter table public.team_absences drop constraint if exists team_absences_status_check;
+alter table public.team_absences add constraint team_absences_status_check check (status in ('pending','approved','rejected','recorded'));
+alter table public.team_absences drop constraint if exists team_absences_absence_kind_check;
+alter table public.team_absences add constraint team_absences_absence_kind_check check (absence_kind in ('planned','unjustified'));
 alter table public.team_absences enable row level security;
 
 create table if not exists public.late_notices (
@@ -176,13 +187,38 @@ create table if not exists public.late_notices (
   session_at timestamptz not null,
   expected_delay_minutes integer not null check (expected_delay_minutes between 1 and 1440),
   reason text not null check (length(trim(reason)) between 3 and 2000),
-  status text not null default 'pending' check (status in ('pending','acknowledged')),
+  status text not null default 'pending' check (status in ('pending','acknowledged','recorded')),
+  late_kind text not null default 'reported' check (late_kind in ('reported','justified','unjustified')),
+  recorded_by uuid references public.profiles(id) on delete set null,
   admin_note text not null default '',
   reviewed_by uuid references public.profiles(id) on delete set null,
   reviewed_at timestamptz,
   created_at timestamptz not null default now()
 );
+alter table public.late_notices add column if not exists late_kind text not null default 'reported';
+alter table public.late_notices add column if not exists recorded_by uuid references public.profiles(id) on delete set null;
+alter table public.late_notices drop constraint if exists late_notices_status_check;
+alter table public.late_notices add constraint late_notices_status_check check (status in ('pending','acknowledged','recorded'));
+alter table public.late_notices drop constraint if exists late_notices_late_kind_check;
+alter table public.late_notices add constraint late_notices_late_kind_check check (late_kind in ('reported','justified','unjustified'));
 alter table public.late_notices enable row level security;
+
+create table if not exists public.team_announcements (
+  id uuid primary key default gen_random_uuid(),
+  title text not null check (length(trim(title)) between 2 and 120),
+  body text not null check (length(trim(body)) between 2 and 4000),
+  recipient_id uuid references public.profiles(id) on delete cascade,
+  display_home boolean not null default true,
+  display_banner boolean not null default false,
+  active boolean not null default true,
+  starts_at timestamptz not null default now(),
+  ends_at timestamptz,
+  created_by uuid not null references public.profiles(id),
+  created_at timestamptz not null default now(),
+  check (display_home or display_banner),
+  check (ends_at is null or ends_at > starts_at)
+);
+alter table public.team_announcements enable row level security;
 
 create table if not exists public.team_messages (
   id uuid primary key default gen_random_uuid(),
@@ -200,6 +236,7 @@ create index if not exists team_absences_member_created_idx on public.team_absen
 create index if not exists team_absences_status_dates_idx on public.team_absences(status, start_date, end_date);
 create index if not exists late_notices_member_created_idx on public.late_notices(user_id, created_at desc);
 create index if not exists late_notices_status_created_idx on public.late_notices(status, created_at desc);
+create index if not exists team_announcements_active_created_idx on public.team_announcements(active, starts_at, ends_at, created_at desc);
 create index if not exists team_messages_created_idx on public.team_messages(created_at desc);
 
 create index if not exists reports_user_created_idx on public.reports(user_id, created_at desc);
@@ -381,7 +418,7 @@ begin
     select tablename, policyname
     from pg_policies
     where schemaname = 'public'
-      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','warning_disputes','sanction_disputes','tasks','task_comments','team_absences','late_notices','team_messages')
+      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','warning_disputes','sanction_disputes','tasks','task_comments','team_absences','late_notices','team_messages','team_announcements')
   loop
     execute format('drop policy %I on public.%I', old_policy.policyname, old_policy.tablename);
   end loop;
@@ -391,7 +428,7 @@ $$;
 revoke all on table public.profiles, public.reports, public.projects, public.team_roles,
   public.report_disputes, public.member_warnings, public.warning_disputes, public.sanction_disputes,
   public.tasks, public.task_comments, public.team_absences, public.late_notices,
-  public.team_messages
+  public.team_messages, public.team_announcements
   from anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.reports to authenticated;
@@ -403,9 +440,10 @@ grant select, insert, update, delete on public.warning_disputes to authenticated
 grant select, insert, update on public.sanction_disputes to authenticated;
 grant select, insert, update, delete on public.tasks to authenticated;
 grant select, insert, delete on public.task_comments to authenticated;
-grant select, insert, update on public.team_absences to authenticated;
-grant select, insert, update on public.late_notices to authenticated;
+grant select, insert, update, delete on public.team_absences to authenticated;
+grant select, insert, update, delete on public.late_notices to authenticated;
 grant select, insert on public.team_messages to authenticated;
+grant select, insert, update, delete on public.team_announcements to authenticated;
 
 drop policy if exists "admin manage warnings" on public.member_warnings;
 create policy "admin manage warnings" on public.member_warnings for all to authenticated
@@ -431,19 +469,36 @@ create policy "active members read absences" on public.team_absences for select 
 using (user_id = (select auth.uid()) or (select public.is_admin()));
 drop policy if exists "members submit own absences" on public.team_absences;
 create policy "members submit own absences" on public.team_absences for insert to authenticated
-with check ((select public.is_active_member()) and user_id = (select auth.uid()));
+with check ((select public.is_active_member()) and user_id = (select auth.uid()) and status = 'pending' and absence_kind = 'planned' and recorded_by is null);
+drop policy if exists "admins record absences" on public.team_absences;
+create policy "admins record absences" on public.team_absences for insert to authenticated
+with check ((select public.is_admin()) and status = 'recorded' and absence_kind = 'unjustified' and recorded_by = (select auth.uid()));
 drop policy if exists "admins review absences" on public.team_absences;
 create policy "admins review absences" on public.team_absences for update to authenticated
 using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "admins delete absences" on public.team_absences;
+create policy "admins delete absences" on public.team_absences for delete to authenticated using ((select public.is_admin()));
 
 drop policy if exists "active members read late notices" on public.late_notices;
 create policy "active members read late notices" on public.late_notices for select to authenticated
 using (user_id = (select auth.uid()) or (select public.is_admin()));
 drop policy if exists "members submit own late notices" on public.late_notices;
 create policy "members submit own late notices" on public.late_notices for insert to authenticated
-with check ((select public.is_active_member()) and user_id = (select auth.uid()));
+with check ((select public.is_active_member()) and user_id = (select auth.uid()) and status = 'pending' and late_kind = 'reported' and recorded_by is null);
+drop policy if exists "admins record late notices" on public.late_notices;
+create policy "admins record late notices" on public.late_notices for insert to authenticated
+with check ((select public.is_admin()) and status = 'recorded' and late_kind in ('justified','unjustified') and recorded_by = (select auth.uid()));
 drop policy if exists "admins review late notices" on public.late_notices;
 create policy "admins review late notices" on public.late_notices for update to authenticated
+using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "admins delete late notices" on public.late_notices;
+create policy "admins delete late notices" on public.late_notices for delete to authenticated using ((select public.is_admin()));
+
+drop policy if exists "members read targeted announcements" on public.team_announcements;
+create policy "members read targeted announcements" on public.team_announcements for select to authenticated
+using ((select public.is_active_member()) and active and starts_at <= now() and (ends_at is null or ends_at > now()) and (recipient_id is null or recipient_id = (select auth.uid())));
+drop policy if exists "admins manage announcements" on public.team_announcements;
+create policy "admins manage announcements" on public.team_announcements for all to authenticated
 using ((select public.is_admin())) with check ((select public.is_admin()));
 
 drop policy if exists "active members read team messages" on public.team_messages;
@@ -480,6 +535,12 @@ begin
     select 1 from public.profiles p where p.id = new.assigned_to and p.status = 'active'
   ) then
     raise exception 'La tâche doit être attribuée à un membre actif';
+  end if;
+  if exists (
+    select 1 from unnest(coalesce(new.assignee_ids, '{}'::uuid[])) selected(member_id)
+    where not exists (select 1 from public.profiles p where p.id = selected.member_id and p.status = 'active')
+  ) then
+    raise exception 'Tous les responsables doivent être des membres actifs';
   end if;
   new.updated_at = now();
   return new;
