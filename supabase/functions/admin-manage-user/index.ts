@@ -64,10 +64,37 @@ Deno.serve(async (request) => {
       const profileById = new Map<string, Record<string, unknown>>((profiles || []).map((profile) => [profile.id, profile] as [string, Record<string, unknown>]));
       const rows = (users.data.users || []).map((user) => ({
         id: user.id,
-        email: user.email || "",
+        email: user.email?.endsWith("@devreports.invalid") ? "" : user.email || "",
+        loginIdentifier: typeof user.user_metadata?.login_identifier === "string" ? user.user_metadata.login_identifier : "",
         ...(profileById.get(user.id) || {}),
       }));
       return response({ users: rows }, 200, origin);
+    }
+
+    if (body?.action === "createIdentifierUser") {
+      const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
+      const nickname = typeof body.nickname === "string" ? body.nickname.trim() : "";
+      const identifier = typeof body.identifier === "string" ? body.identifier.trim().toLowerCase() : "";
+      if (displayName.length < 2 || displayName.length > 80 || nickname.length > 40) return response({ error: "Le nom ou le pseudo est invalide." }, 400, origin);
+      if (!/^[a-z0-9][a-z0-9._-]{2,29}$/.test(identifier)) return response({ error: "Identifiant invalide : 3 à 30 caractères, lettres sans accent, chiffres, point, tiret ou tiret bas." }, 400, origin);
+      const temporaryPassword = Array.from(crypto.getRandomValues(new Uint8Array(24)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+      const internalEmail = `id-${identifier}@devreports.invalid`;
+      const { data: created, error: createError } = await admin.auth.admin.createUser({
+        email: internalEmail,
+        password: temporaryPassword,
+        email_confirm: true,
+        user_metadata: { display_name: displayName, nickname, login_identifier: identifier, must_change_password: true },
+      });
+      if (createError) {
+        if (createError.message.toLowerCase().includes("already") || createError.message.toLowerCase().includes("registered")) return response({ error: "Cet identifiant est déjà pris. Choisis-en un autre." }, 409, origin);
+        throw createError;
+      }
+      const { error: profileUpdateError } = await admin.from("profiles").update({ display_name: displayName, nickname, role: "developer", roles: ["developer"], status: "active" }).eq("id", created.user.id);
+      if (profileUpdateError) {
+        await admin.auth.admin.deleteUser(created.user.id);
+        throw profileUpdateError;
+      }
+      return response({ ok: true, identifier, temporaryPassword }, 201, origin);
     }
 
     if (body?.action !== "updateUser" || typeof body.userId !== "string") {
@@ -93,8 +120,12 @@ Deno.serve(async (request) => {
 
     const { data: targetData, error: targetError } = await admin.auth.admin.getUserById(userId);
     if (targetError || !targetData.user) return response({ error: "Compte introuvable." }, 404, origin);
-    const updates: Record<string, unknown> = { user_metadata: { ...(targetData.user.user_metadata || {}), display_name: displayName, nickname } };
     const emailChanged = Boolean(email && email.toLowerCase() !== (targetData.user.email || "").toLowerCase());
+    if (primaryAdmin?.id === userId && (emailChanged || password)) {
+      return response({ error: "Le mot de passe et l’adresse du compte administrateur principal sont verrouillés." }, 403, origin);
+    }
+    const updates: Record<string, unknown> = { user_metadata: { ...(targetData.user.user_metadata || {}), display_name: displayName, nickname } };
+    if (targetData.user.user_metadata?.login_identifier && emailChanged) return response({ error: "L’adresse technique de connexion par identifiant ne peut pas être modifiée." }, 403, origin);
     if (emailChanged) updates.email = email;
     if (password) updates.password = password;
     const { error: updateError } = await admin.auth.admin.updateUserById(userId, updates);
