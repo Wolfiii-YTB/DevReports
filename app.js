@@ -102,7 +102,7 @@
     const name=$("signupName").value.trim(),email=$("signupEmail").value.trim(),password=$("signupPassword").value;
     if(!name||!email||password.length<8)return toast("Renseignez votre nom, votre e-mail et un mot de passe de 8 caractères minimum.",true);
     const {error}=await db.auth.signUp({email,password,options:{data:{display_name:name}}});
-    if(error)toast(error.message,true);else toast("Compte créé. Vérifiez votre e-mail si une confirmation est activée.");
+    if(error)toast(error.message,true);else toast("Compte créé. La confirmation e-mail est désactivée ; l’administrateur doit encore approuver l’accès.");
   };
   $("logoutBtn").onclick=async()=>{if(db)await db.auth.signOut();};
   $("submitReport").onclick=async()=>{

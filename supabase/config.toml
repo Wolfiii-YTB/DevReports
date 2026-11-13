@@ -1,4 +1,27 @@
 project_id = "bylwvlxxvgumvqgpwgod"
 
+[auth]
+site_url = "https://wolfiii-ytb.github.io/DevReports/"
+additional_redirect_urls = ["https://wolfiii-ytb.github.io/DevReports/"]
+
+[auth.email]
+enable_confirmations = false
+max_frequency = "1m"
+otp_length = 8
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.sms]
+enable_confirmations = true
+
+[db.pooler]
+default_pool_size = 15
+max_client_conn = 200
+
+[storage.vector]
+enabled = false
+
 [functions.admin-manage-user]
 verify_jwt = true
