@@ -51,14 +51,28 @@ Deno.serve(async (request) => {
 
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const body = await request.json();
+    if (body?.action === "saveAppearance") {
+      const theme = typeof body.theme === "string" ? body.theme : "";
+      const accent = typeof body.accent === "string" ? body.accent.toLowerCase() : "";
+      if (!(["light", "dark"].includes(theme)) || !/^#[0-9a-f]{6}$/.test(accent)) {
+        return response({ error: "Thème ou couleur invalide." }, 400, origin);
+      }
+      const { data: profile, error: appearanceError } = await admin.from("profiles")
+        .update({ theme_preference: theme, accent_color: accent })
+        .eq("id", authData.user.id).eq("status", "active")
+        .select("id").maybeSingle();
+      if (appearanceError) throw appearanceError;
+      if (!profile) return response({ error: "Compte actif introuvable." }, 403, origin);
+      return response({ ok: true }, 200, origin);
+    }
     if (body?.action === "completeInitialPasswordChange") {
       const password = typeof body.password === "string" ? body.password : "";
       if (password.length < 8 || password.length > 128) return response({ error: "Le mot de passe doit contenir entre 8 et 128 caractères." }, 400, origin);
       const { data: account, error: accountError } = await admin.auth.admin.getUserById(authData.user.id);
-      if (accountError || !account.user || account.user.app_metadata?.must_change_password !== true) return response({ error: "Aucun mot de passe provisoire n’attend de remplacement." }, 409, origin);
+      if (accountError || !account.user || account.user.app_metadata?.must_change_password !== true || account.user.app_metadata?.password_provisioning !== "temporary") return response({ error: "Aucun mot de passe provisoire n’attend de remplacement." }, 409, origin);
       const { data: profile, error: profileError } = await admin.from("profiles").select("status").eq("id", authData.user.id).single();
       if (profileError || profile?.status !== "active") return response({ error: "Ce compte n’est pas actif." }, 403, origin);
-      const { error } = await admin.auth.admin.updateUserById(authData.user.id, { password, app_metadata: { ...account.user.app_metadata, must_change_password: false } });
+      const { error } = await admin.auth.admin.updateUserById(authData.user.id, { password, app_metadata: { ...account.user.app_metadata, must_change_password: false, password_provisioning: "permanent" } });
       if (error) throw error;
       return response({ ok: true }, 200, origin);
     }
@@ -99,7 +113,7 @@ Deno.serve(async (request) => {
       const { data: existingIdentifier } = await admin.from("profiles").select("id").eq("login_identifier", identifier).limit(1).maybeSingle();
       if (existingIdentifier) return response({ error: "Cet identifiant est déjà utilisé. Choisis-en un autre." }, 409, origin);
       const loginEmail = loginType === "identifier" ? `id-${identifier}@devreports.invalid` : email;
-      const appMetadata = { login_identifier: identifier, must_change_password: true };
+      const appMetadata = { login_identifier: identifier, must_change_password: true, password_provisioning: "temporary" };
       const { data: created, error: createError } = await admin.auth.admin.createUser({
         email: loginEmail,
         password: temporaryPassword,
@@ -150,7 +164,12 @@ Deno.serve(async (request) => {
     }
     const { data: duplicateIdentifier } = await admin.from("profiles").select("id").eq("login_identifier", identifier).neq("id", userId).limit(1).maybeSingle();
     if (duplicateIdentifier) return response({ error: "Cet identifiant est déjà utilisé par un autre membre." }, 409, origin);
-    const updates: Record<string, unknown> = { user_metadata: { ...(targetData.user.user_metadata || {}), display_name: displayName, nickname }, app_metadata: { ...(targetData.user.app_metadata || {}), login_identifier: identifier } };
+    const appMetadata: Record<string, unknown> = { ...(targetData.user.app_metadata || {}), login_identifier: identifier };
+    if (password) {
+      appMetadata.must_change_password = false;
+      appMetadata.password_provisioning = "permanent";
+    }
+    const updates: Record<string, unknown> = { user_metadata: { ...(targetData.user.user_metadata || {}), display_name: displayName, nickname }, app_metadata: appMetadata };
     if (targetData.user.app_metadata?.login_identifier && emailChanged) return response({ error: "L’adresse technique de connexion par identifiant ne peut pas être modifiée." }, 403, origin);
     if (emailChanged) updates.email = email;
     if (password) updates.password = password;
