@@ -11,7 +11,7 @@
   function escapeHtml(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
   function dateLabel(s){return new Date(s).toLocaleString("fr-FR",{dateStyle:"medium",timeStyle:"short"});}
   function weekAgo(s){return new Date(s).getTime()>=Date.now()-7*86400000;}
-  function showPage(page){if((page==="team"||page==="stats"||page==="projects")&&currentProfile?.role!=="admin")page="dashboard";["dashboard","compose","reports","tasks","stats","team","projects"].forEach(p=>$(p+"Page").classList.toggle("hidden",p!==page));document.querySelectorAll("#mainNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));if(page==="compose")$("project").focus();if(page==="reports")renderReports();if(page==="tasks")loadTasks();if(page==="stats")renderStats();if(page==="team")renderTeam();if(page==="projects")loadProjects();}
+  function showPage(page){if((page==="team"||page==="stats"||page==="projects")&&currentProfile?.role!=="admin")page="dashboard";["dashboard","compose","reports","tasks","stats","team","projects"].forEach(p=>$(p+"Page").classList.toggle("hidden",p!==page));document.querySelectorAll("#mainNav [data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===page));if(currentUser) localStorage.setItem("devreports-page-"+currentUser.id,page);if(page==="compose")$("project").focus();if(page==="reports")renderReports();if(page==="tasks")loadTasks();if(page==="stats")renderStats();if(page==="team")renderTeam();if(page==="projects")loadProjects();}
   async function loadProfile(){
     const {data,error}=await db.from("profiles").select("display_name,nickname,role,status,roles,suspended_until,restriction_reason").eq("id",currentUser.id).single();
     if(error) throw error; currentProfile=data;
@@ -75,14 +75,14 @@
     $("welcomeEyebrow").textContent=admin?"Administration":"Espace développeur";
     $("welcomeTitle").textContent=admin?"Vue d'ensemble des rapports":"Bonjour, "+(currentProfile.nickname||currentProfile.display_name||"développeur")+" !";
     $("welcomeText").textContent=admin?"Consultez les rapports de toute l'équipe et suivez l'avancement des projets.":"Publiez vos rapports de travail et retrouvez l'historique de vos contributions.";
-    document.querySelectorAll(".admin-only").forEach(el=>el.classList.toggle("hidden",!admin));$("personFilter").classList.toggle("hidden",!admin);showPage("dashboard");
+    document.querySelectorAll(".admin-only").forEach(el=>el.classList.toggle("hidden",!admin));$("personFilter").classList.toggle("hidden",!admin);const savedPage=localStorage.getItem("devreports-page-"+user.id)||"dashboard";showPage(["dashboard","compose","reports","tasks","stats","team","projects"].includes(savedPage)?savedPage:"dashboard");
     const loads=await Promise.allSettled([refreshReports(),loadMyWarnings()]);if(loads[0].status==="rejected")toast("Les avertissements sont chargés, mais les rapports ont échoué : "+(loads[0].reason?.message||"erreur Supabase"),true);
   }
   async function init(){
     if(!configured()){toast("Configuration nécessaire : ajoutez l'URL et la clé publique Supabase dans index.html.",true);return;}
     if(!window.supabase?.createClient){toast("La bibliothèque Supabase n’a pas pu être chargée. Vérifiez votre connexion Internet.",true);return;}
     db=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
-    db.auth.onAuthStateChange((event,session)=>{setTimeout(async()=>{if(event==="PASSWORD_RECOVERY"){passwordRecoveryActive=true;openPasswordRecoveryDialog();return}if(passwordRecoveryActive&&event==="USER_UPDATED")return;if(session){try{await enterApp(session.user)}catch(e){console.error(e);currentUser=null;currentProfile=null;setView(false);$("rolePill").textContent="Espace sécurisé";toast("Chargement impossible : "+(e.message||"erreur Supabase"),true)}}else{passwordRecoveryActive=false;currentUser=null;currentProfile=null;allReports=[];setView(false);$("rolePill").textContent="Espace sécurisé";}},0);});
+    db.auth.onAuthStateChange((event,session)=>{setTimeout(async()=>{if(event==="PASSWORD_RECOVERY"){passwordRecoveryActive=true;openPasswordRecoveryDialog();return}if(passwordRecoveryActive&&event==="USER_UPDATED")return;if(event==="SIGNED_OUT"||!session){passwordRecoveryActive=false;currentUser=null;currentProfile=null;allReports=[];setView(false);$("rolePill").textContent="Espace sécurisé";return}if(event!=="INITIAL_SESSION"&&event!=="SIGNED_IN")return;try{await enterApp(session.user)}catch(e){console.error(e);currentUser=null;currentProfile=null;setView(false);$("rolePill").textContent="Espace sécurisé";toast("Chargement impossible : "+(e.message||"erreur Supabase"),true)}},0);});
   }
   $("loginBtn").onclick=async()=>{
     if(!db)return toast("Configurez d'abord Supabase.",true);
