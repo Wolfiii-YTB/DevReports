@@ -77,7 +77,7 @@ Deno.serve(async (request) => {
         const url = typeof body.webhookUrl === "string" ? body.webhookUrl.trim() : "";
         const events = Array.isArray(body.events) ? [...new Set(body.events.filter((event: unknown) => typeof event === "string" && eventTypes.includes(event)))] : [];
         if (!events.length) return reply({ error: "Sélectionne au moins un événement autorisé." }, 400, origin);
-        if (url && !validWebhook(url)) return reply({ error: "URL refusée. Colle une URL de webhook Discord HTTPS valide." }, 400, origin);
+        if (url && (url.length > 2048 || !validWebhook(url))) return reply({ error: "URL refusée. Colle une URL de webhook Discord HTTPS valide." }, 400, origin);
         if (!url && !config) return reply({ error: "Colle l’URL du webhook Discord." }, 400, origin);
         const { error } = await admin.from("team_webhook_config").upsert({ id: true, webhook_url: url || config.webhook_url, events, updated_by: auth.user.id, updated_at: new Date().toISOString() });
         if (error) throw error;
@@ -123,7 +123,15 @@ Deno.serve(async (request) => {
     else if (eventType === "late_reported" || eventType === "late_recorded") fields = [{ name: "Membre", value: memberName }, { name: "Session", value: clip(row.session_at, 180), inline: true }, { name: "Durée", value: `${row.expected_delay_minutes} minutes`, inline: true }, { name: "Statut", value: eventType === "late_recorded" ? `Retard consigné (${row.late_kind || "non précisé"})` : "Retard signalé", inline: true }, { name: "Motif / contexte", value: clip(row.reason) }];
     else if (eventType === "warning_created") fields = [{ name: "Membre", value: memberName }, { name: "Attribué par", value: clip(row.admin_name, 180), inline: true }, { name: "Motif", value: clip(row.motif, 220) }, { name: "Description", value: clip(row.description) }];
     else fields = [{ name: "Titre", value: clip(row.title, 220) }, { name: "Annonce", value: clip(row.body) }];
-    await sendWebhook(config.webhook_url, eventTitle(eventType), fields);
+    const { error: deliveryError } = await admin.from("team_webhook_deliveries").insert({ event_type: eventType, record_id: body.recordId });
+    if (deliveryError?.code === "23505") return reply({ ok: true, skipped: true, duplicate: true }, 200, origin);
+    if (deliveryError) throw deliveryError;
+    try {
+      await sendWebhook(config.webhook_url, eventTitle(eventType), fields);
+    } catch (error) {
+      await admin.from("team_webhook_deliveries").delete().eq("event_type", eventType).eq("record_id", body.recordId);
+      throw error;
+    }
     return reply({ ok: true }, 200, origin);
   } catch (error) {
     console.error("manage-team-webhook failed");

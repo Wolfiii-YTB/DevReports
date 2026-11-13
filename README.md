@@ -18,6 +18,7 @@ Application statique d’équipe pour les rapports, les avertissements et le sui
 - Envoi d’un lien Supabase de réinitialisation de mot de passe; aucun mot de passe temporaire n’est transmis par e-mail.
 - Rôles par défaut nettoyés, et rôles du compte administrateur principal protégés côté base de données; seul le compte principal gère ses propres rôles.
 - Gestion des projets, interface responsive en thème clair/sombre et export JSON des données accessibles.
+- Notifications Discord configurables par événement, avec l’URL du webhook stockée uniquement côté serveur dans Supabase.
 
 ## Configuration et publication
 
@@ -51,3 +52,12 @@ Le bouton **Télécharger l’export JSON** dans **Projets** télécharge une co
 - `styles.css` : mise en page responsive et thèmes.
 - `supabase_setup.sql` : tables, fonctions, index et politiques RLS.
 - `supabase/functions/admin-manage-user/index.ts` : API serveur admin pour les opérations Auth sensibles.
+- `supabase/functions/manage-team-webhook/index.ts` : gestion sécurisée des réglages webhook et notifications Discord.
+
+## Webhooks et migrations de sécurité
+
+- L’administrateur configure les notifications depuis **Webhooks** dans le site; le navigateur ne peut ni lire ni récupérer l’URL enregistrée.
+- Les rapports, absences, retards, avertissements et annonces peuvent produire une notification Discord.
+- Déploie les fonctions après modification avec `supabase functions deploy admin-manage-user` et `supabase functions deploy manage-team-webhook`.
+- Pour une installation existante, applique les migrations sous `supabase/migrations/` si elles ne sont pas déjà présentes. Les migrations de sécurité révoquent les droits d’administration des comptes suspendus et protègent le compte admin principal.
+- `ALLOWED_ORIGINS` doit contenir l’origine exacte du site, sans le chemin `/DevReports/`.

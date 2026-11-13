@@ -258,15 +258,20 @@ set search_path = ''
 as $$
   select exists (
     select 1 from public.profiles
-    where id = (select auth.uid()) and role = 'admin'
+    where id = (select auth.uid()) and role = 'admin' and status = 'active'
   );
 $$;
 
 create or replace function public.admin_delete_user(target_user uuid)
 returns void language plpgsql security definer set search_path = '' as $$
+declare primary_admin uuid;
 begin
   if not (select public.is_admin()) or target_user = (select auth.uid()) then
     raise exception 'Action réservée à un administrateur sur un autre compte';
+  end if;
+  select id into primary_admin from public.profiles where role = 'admin' order by created_at asc limit 1;
+  if target_user = primary_admin then
+    raise exception 'Le compte administrateur principal ne peut pas être supprimé par un autre membre.';
   end if;
   delete from auth.users where id = target_user;
 end;
@@ -420,12 +425,19 @@ begin
     select tablename, policyname
     from pg_policies
     where schemaname = 'public'
-      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','warning_disputes','sanction_disputes','tasks','task_comments','team_absences','late_notices','team_messages','team_announcements')
+      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','member_sanctions','warning_disputes','sanction_disputes','tasks','task_comments','team_absences','late_notices','team_messages','team_announcements')
   loop
     execute format('drop policy %I on public.%I', old_policy.policyname, old_policy.tablename);
   end loop;
 end;
 $$;
+
+drop policy if exists "admins read member sanctions" on public.member_sanctions;
+create policy "admins read member sanctions" on public.member_sanctions
+for select to authenticated using ((select public.is_admin()));
+drop policy if exists "members read own sanctions" on public.member_sanctions;
+create policy "members read own sanctions" on public.member_sanctions
+for select to authenticated using (member_id = (select auth.uid()));
 
 revoke all on table public.profiles, public.reports, public.projects, public.team_roles,
   public.report_disputes, public.member_warnings, public.warning_disputes, public.sanction_disputes,
@@ -666,7 +678,7 @@ drop policy if exists "admin update other profiles" on public.profiles;
 create policy "profile read self" on public.profiles
 for select to authenticated using (id = (select auth.uid()));
 create policy "admin read all profiles" on public.profiles
-for select to authenticated using ((select public.is_admin()) or status = 'active');
+for select to authenticated using ((select public.is_admin()) or ((select public.is_active_member()) and status = 'active'));
 create policy "admin update other profiles" on public.profiles
 for update to authenticated using ((select public.is_admin()) and id <> (select auth.uid()))
 with check ((select public.is_admin()) and id <> (select auth.uid()));
@@ -701,3 +713,12 @@ alter table public.team_webhook_config enable row level security;
 revoke all on table public.team_webhook_config from public, anon, authenticated;
 grant all on table public.team_webhook_config to service_role;
 comment on table public.team_webhook_config is 'Secret Discord webhook configuration; access only from trusted server functions.';
+create table if not exists public.team_webhook_deliveries (
+  event_type text not null,
+  record_id uuid not null,
+  sent_at timestamptz not null default now(),
+  primary key (event_type, record_id)
+);
+alter table public.team_webhook_deliveries enable row level security;
+revoke all on table public.team_webhook_deliveries from public, anon, authenticated;
+grant all on table public.team_webhook_deliveries to service_role;

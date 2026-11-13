@@ -74,6 +74,10 @@ Deno.serve(async (request) => {
       return response({ error: "Requête invalide." }, 400, origin);
     }
     const userId = body.userId;
+    const { data: primaryAdmin } = await admin.from("profiles").select("id").eq("role", "admin").order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (primaryAdmin?.id === userId && primaryAdmin.id !== authData.user.id) {
+      return response({ error: "Le compte administrateur principal ne peut être modifié que par son propriétaire." }, 403, origin);
+    }
     const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
     const nickname = typeof body.nickname === "string" ? body.nickname.trim() : "";
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
