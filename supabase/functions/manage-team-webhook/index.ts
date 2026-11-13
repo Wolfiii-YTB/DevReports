@@ -12,7 +12,7 @@ function secret(name: string, groupedName: string) {
 const serviceKey = secret("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEYS");
 const anonKey = secret("SUPABASE_ANON_KEY", "SUPABASE_PUBLISHABLE_KEYS");
 const allowedOrigins = (Deno.env.get("ALLOWED_ORIGINS") || "").split(",").map((item) => item.trim()).filter(Boolean);
-const eventTypes = ["report_created", "absence_requested", "late_reported", "absence_recorded", "late_recorded", "warning_created", "announcement_published"];
+const eventTypes = ["report_created", "absence_requested", "late_reported", "absence_recorded", "late_recorded", "warning_created", "sanction_created", "announcement_published"];
 class PublicWebhookError extends Error {}
 
 function reply(body: unknown, status: number, origin: string) {
@@ -58,7 +58,7 @@ function renderTemplate(template: string, values: Record<string, string>) {
   return template.replace(/\{([\p{L}0-9_]+)\}/gu, (_match, key: string) => values[key] ?? "").slice(0, 1800);
 }
 function eventTitle(type: string) {
-  return ({ report_created: "Nouveau rapport", absence_requested: "Demande d’absence", late_reported: "Retard signalé", absence_recorded: "Absence consignée", late_recorded: "Retard consigné", warning_created: "Avertissement attribué", announcement_published: "Nouvelle annonce" } as Record<string, string>)[type] || "Événement d’équipe";
+  return ({ report_created: "Nouveau rapport", absence_requested: "Demande d’absence", late_reported: "Retard signalé", absence_recorded: "Absence consignée", late_recorded: "Retard consigné", warning_created: "Avertissement attribué", sanction_created: "Sanction de compte", announcement_published: "Nouvelle annonce" } as Record<string, string>)[type] || "Événement d’équipe";
 }
 type ExtraEmbed = { title: string; description: string; image_url: string };
 async function sendWebhook(url: string, username: string, avatarUrl: string | null, title: string, fields: Array<{ name: string; value: string; inline?: boolean }>, options: { content?: string; mention?: string; imageUrl?: string | null; extraEmbeds?: ExtraEmbed[] } = {}) {
@@ -169,7 +169,7 @@ Deno.serve(async (request) => {
 
     if (body?.action !== "notify" || !eventTypes.includes(body?.eventType) || typeof body.recordId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.recordId)) return reply({ error: "Événement invalide." }, 400, origin);
     const eventType = body.eventType as string;
-    const adminOnly = ["absence_recorded", "late_recorded", "warning_created", "announcement_published"].includes(eventType);
+    const adminOnly = ["absence_recorded", "late_recorded", "warning_created", "sanction_created", "announcement_published"].includes(eventType);
     if (adminOnly && !isAdmin) return reply({ error: "Action réservée à un administrateur." }, 403, origin);
     const { data: configs, error: configError } = await admin.from("team_webhooks").select("id,name,username_mode,avatar_url,mention_target,embed_image_url,extra_embeds,message_template,webhook_url,events");
     if (configError) throw configError;
@@ -183,6 +183,7 @@ Deno.serve(async (request) => {
       absence_recorded: { table: "team_absences", columns: "id,user_id,start_date,end_date,reason,status,absence_kind" },
       late_recorded: { table: "late_notices", columns: "id,user_id,session_at,expected_delay_minutes,reason,status,late_kind" },
       warning_created: { table: "member_warnings", columns: "id,member_id,admin_name,motif,description,created_at" },
+      sanction_created: { table: "member_sanctions", columns: "id,member_id,admin_id,action,reason,expires_at,created_at" },
       announcement_published: { table: "team_announcements", columns: "id,title,body,created_by,created_at" },
     };
     const { table, columns } = spec[eventType];
@@ -192,23 +193,33 @@ Deno.serve(async (request) => {
     const ownerId = (row.user_id || row.created_by || row.admin_id || "") as string;
     if (ownerId !== auth.user.id && !isAdmin) return reply({ error: "Tu ne peux pas notifier cet événement." }, 403, origin);
     let memberName = "";
+    let subjectProfile: { nickname?: string; display_name?: string; status?: string; suspended_until?: string | null } | null = null;
     const memberId = (row.user_id || row.member_id || "") as string;
     if (memberId) {
-      const { data: member } = await admin.from("profiles").select("display_name,nickname").eq("id", memberId).maybeSingle();
+      const { data: member } = await admin.from("profiles").select("display_name,nickname,status,suspended_until").eq("id", memberId).maybeSingle();
+      subjectProfile = member;
       memberName = member?.nickname || member?.display_name || "Membre";
     }
+    const today = new Date().toISOString().slice(0, 10);
+    let activeNumber = 0;
+    if (eventType === "sanction_created") activeNumber = subjectProfile?.status === "banned" || (subjectProfile?.status === "suspended" && (!subjectProfile.suspended_until || new Date(subjectProfile.suspended_until).getTime() > Date.now())) ? 1 : 0;
+    else if (eventType === "warning_created") { const { count, error } = await admin.from("member_warnings").select("id", { count: "exact", head: true }).eq("member_id", memberId); if (error) throw error; activeNumber = count || 0; }
+    else if (eventType === "absence_requested" || eventType === "absence_recorded") { const { count, error } = await admin.from("team_absences").select("id", { count: "exact", head: true }).eq("user_id", memberId).in("status", ["pending", "approved", "recorded"]).gte("end_date", today); if (error) throw error; activeNumber = count || 0; }
+    else if (eventType === "late_reported" || eventType === "late_recorded") { const { count, error } = await admin.from("late_notices").select("id", { count: "exact", head: true }).eq("user_id", memberId).in("status", ["pending", "acknowledged"]); if (error) throw error; activeNumber = count || 0; }
+    else if (eventType === "report_created") { const { count, error } = await admin.from("reports").select("id", { count: "exact", head: true }).eq("user_id", memberId); if (error) throw error; activeNumber = count || 0; }
     let fields: Array<{ name: string; value: string; inline?: boolean }> = [];
     if (eventType === "report_created") fields = [{ name: "Membre", value: memberName }, { name: "Projet", value: clip(row.project, 180), inline: true }, { name: "Catégorie", value: clip(row.category, 180), inline: true }, { name: "Rapport", value: clip(row.title, 220) }, { name: "Travail réalisé", value: clip(row.work, 900) }];
     else if (eventType === "absence_requested" || eventType === "absence_recorded") fields = [{ name: "Membre", value: memberName }, { name: "Période", value: `${row.start_date} → ${row.end_date}`, inline: true }, { name: "Statut", value: eventType === "absence_recorded" ? "Absence non justifiée consignée" : "Demande transmise", inline: true }, { name: "Motif / contexte", value: clip(row.reason) }];
     else if (eventType === "late_reported" || eventType === "late_recorded") fields = [{ name: "Membre", value: memberName }, { name: "Session", value: clip(row.session_at, 180), inline: true }, { name: "Durée", value: `${row.expected_delay_minutes} minutes`, inline: true }, { name: "Statut", value: eventType === "late_recorded" ? `Retard consigné (${row.late_kind || "non précisé"})` : "Retard signalé", inline: true }, { name: "Motif / contexte", value: clip(row.reason) }];
     else if (eventType === "warning_created") fields = [{ name: "Membre", value: memberName }, { name: "Attribué par", value: clip(row.admin_name, 180), inline: true }, { name: "Motif", value: clip(row.motif, 220) }, { name: "Description", value: clip(row.description) }];
+    else if (eventType === "sanction_created") fields = [{ name: "Membre", value: memberName }, { name: "Sanction", value: row.action === "ban" ? "Bannissement définitif" : "Suspension temporaire", inline: true }, { name: "Motif", value: clip(row.reason) }, { name: "Expiration", value: row.expires_at ? new Date(row.expires_at).toLocaleString("fr-FR") : "Aucune" }];
     else fields = [{ name: "Titre", value: clip(row.title, 220) }, { name: "Annonce", value: clip(row.body) }];
     const outcomes = await Promise.all(destinations.map(async (config) => {
       const { error: deliveryError } = await admin.from("team_webhook_deliveries").insert({ webhook_id: config.id, event_type: eventType, record_id: body.recordId });
       if (deliveryError?.code === "23505") return { status: "duplicate" as const, name: config.name };
       if (deliveryError) throw deliveryError;
       try {
-        const templateValues = { pseudo: memberName, pseudo_personneconcernee: memberName, pseudo_personneconerné: memberName, pseudo_personneconcerne: memberName, projet: clip(row.project || "", 150), project: clip(row.project || "", 150), titre: clip(row.title || row.motif || "", 200), title: clip(row.title || row.motif || "", 200), categorie: clip(row.category || "", 120), category: clip(row.category || "", 120), description: clip(row.description || row.work || row.body || row.reason || "", 800), work: clip(row.work || "", 800), reason: clip(row.reason || row.motif || "", 500), date: new Date().toLocaleString("fr-FR") };
+        const templateValues = { pseudo: memberName, pseudo_personneconcernee: memberName, pseudo_personneconerné: memberName, pseudo_personneconcerne: memberName, number: String(activeNumber), nombre: String(activeNumber), projet: clip(row.project || "", 150), project: clip(row.project || "", 150), titre: clip(row.title || row.motif || "", 200), title: clip(row.title || row.motif || "", 200), categorie: clip(row.category || "", 120), category: clip(row.category || "", 120), description: clip(row.description || row.work || row.body || row.reason || "", 800), work: clip(row.work || "", 800), reason: clip(row.reason || row.motif || "", 500), date: new Date().toLocaleString("fr-FR") };
         const content = config.message_template ? renderTemplate(config.message_template, templateValues) : "";
         await sendWebhook(config.webhook_url, config.username_mode === "brand" ? "DevReports" : `${config.name} | DevReports`, config.avatar_url, eventTitle(eventType), fields, { content, mention: config.mention_target || "", imageUrl: config.embed_image_url, extraEmbeds: config.extra_embeds || [] });
         return { status: "sent" as const, name: config.name };
