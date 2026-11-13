@@ -8,7 +8,7 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://bylwvlxxvgumvqgpwgod.supabase.co wss://bylwvlxxvgumvqgpwgod.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <link rel="stylesheet" href="./styles.css?v=20261113-3">
+  <link rel="stylesheet" href="./styles.css?v=20261113-4">
 </head>
 <body>
 <a class="skip-link" id="skipLink" href="#authView">Aller au contenu principal</a>
@@ -20,6 +20,10 @@
 
   <section id="authView">
     <div class="config-banner hidden" id="configBanner" role="status"><strong>Connexion à configurer</strong>Ajoutez l’URL de votre projet Supabase et sa clé publique dans index.html pour activer les comptes et les rapports.</div>
+    <section id="restrictionNotice" class="restriction-notice hidden" role="alert" aria-live="assertive">
+      <div class="restriction-icon" aria-hidden="true">⛨</div>
+      <div class="restriction-content"><div class="restriction-kicker">Information sur ton compte</div><h2 id="restrictionTitle">Accès temporairement limité</h2><p id="restrictionSummary"></p><div class="restriction-details"><div><span>Décision prise par</span><strong id="restrictionIssuer">Administration</strong></div><div><span>Motif</span><strong id="restrictionReason">—</strong></div><div id="restrictionRemainingWrap"><span>Temps restant</span><strong id="restrictionRemaining">—</strong></div></div><p id="restrictionDescription" class="restriction-description"></p><button class="btn secondary" id="dismissRestriction" type="button">J’ai compris</button></div>
+    </section>
     <div class="hero"><div class="eyebrow">Studio workspace</div><h1>Le développement,<br>en toute transparence.</h1><p>Centralisez les rapports de votre équipe : avancement, scripts, construction, tests et incidents. Les administrateurs disposent d'une vue globale sur les publications.</p></div>
     <div class="grid">
       <div class="card">
@@ -103,6 +107,6 @@
 <dialog id="memberDialog" class="app-dialog member-dialog" aria-labelledby="memberDialogTitle"></dialog>
 <dialog id="passwordRecoveryDialog" class="app-dialog member-dialog" aria-labelledby="passwordRecoveryTitle"></dialog>
 
-<script src="./app.js?v=20261113-3" defer></script>
+<script src="./app.js?v=20261113-4" defer></script>
 </body>
 </html>
