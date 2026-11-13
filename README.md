@@ -7,12 +7,15 @@ Application statique d’équipe pour les rapports, les avertissements et le sui
 - Comptes développeurs soumis à validation et rôles administrateur protégés côté serveur.
 - Rapports d’avancement, modération et gestion Discord, recherche et export PDF A4.
 - Avertissements modifiables/supprimables par les admins et contestables par le membre concerné.
+- Contestation des suspensions et bannissements depuis l’écran de connexion, avec un centre admin qui rassemble les contestations.
+- Gestion d’équipe organisée par onglets; menus compacts pour les rôles et les actions de chaque membre.
 - Tableau Kanban partagé : tâches à planifier, à faire, en cours, à vérifier et terminées.
 - Attribution, échéances, priorités, étiquettes, checklist et commentaires sur les tâches.
 - Demandes d’absence avec validation admin et signalements de retard suivis dans l’espace équipe.
 - Messagerie générale intégrée pour les membres actifs, avec actualisation en direct et repli périodique.
 - Rôles personnalisés avec attribution multiple, et édition sécurisée du nom, pseudo, e-mail et mot de passe des comptes.
 - Envoi d’un lien Supabase de réinitialisation de mot de passe; aucun mot de passe temporaire n’est transmis par e-mail.
+- Rôles par défaut nettoyés, et rôles du compte administrateur principal protégés côté base de données; seul le compte principal gère ses propres rôles.
 - Gestion des projets, interface responsive en thème clair/sombre et export JSON des données accessibles.
 
 ## Configuration et publication

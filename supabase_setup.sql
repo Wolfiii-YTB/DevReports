@@ -64,6 +64,10 @@ insert into public.team_roles(role_key,label) values
   ('discord_admin','Admin Discord'),('staff','Staff'),('community','Communauté'),
   ('community_manager','Community Manager'),('support','Support'),('event_manager','Organisateur d’événements')
 on conflict (role_key) do nothing;
+-- Retire l’ancien rôle générique « Communauté » ; les fonctions concrètes restent configurables.
+update public.profiles set roles = array_remove(roles,'community');
+update public.reports set author_roles = array_remove(author_roles,'community');
+delete from public.team_roles where role_key='community';
 create table if not exists public.report_disputes(id uuid primary key default gen_random_uuid(),report_id uuid not null references public.reports(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,reason text not null,status text not null default 'open',created_at timestamptz not null default now());
 alter table public.report_disputes enable row level security;
 
@@ -87,8 +91,25 @@ create table if not exists public.member_sanctions (
   created_at timestamptz not null default now()
 );
 alter table public.member_sanctions enable row level security;
+create table if not exists public.sanction_disputes (
+  id uuid primary key default gen_random_uuid(),
+  sanction_id uuid not null references public.member_sanctions(id) on delete cascade,
+  member_id uuid not null references public.profiles(id) on delete cascade,
+  reason text not null check (length(trim(reason)) between 3 and 3000),
+  status text not null default 'open' check (status in ('open','reviewed','accepted','dismissed')),
+  admin_note text not null default '',
+  reviewed_by uuid references public.profiles(id),
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.sanction_disputes enable row level security;
+create unique index if not exists one_open_sanction_dispute_per_member
+  on public.sanction_disputes(sanction_id,member_id) where status='open';
+create index if not exists sanction_disputes_created_idx on public.sanction_disputes(created_at desc);
 revoke all on table public.member_sanctions from anon, authenticated;
 grant select on table public.member_sanctions to authenticated;
+revoke all on table public.sanction_disputes from anon, authenticated;
+grant select, insert, update on table public.sanction_disputes to authenticated;
 
 alter table public.member_warnings add column if not exists motif text not null default 'Autre';
 alter table public.member_warnings add column if not exists description text not null default '';
@@ -232,6 +253,46 @@ $$;
 revoke all on function public.admin_delete_team_role(text) from public;
 grant execute on function public.admin_delete_team_role(text) to authenticated;
 
+create or replace function public.admin_set_member_roles(target_user uuid, target_roles text[])
+returns void language plpgsql security definer set search_path = '' as $$
+declare primary_admin uuid;
+begin
+  if not (select public.is_admin()) then raise exception 'Action réservée à un administrateur.'; end if;
+  select id into primary_admin from public.profiles where role='admin' order by created_at asc limit 1;
+  if target_user = (select auth.uid()) and target_user <> primary_admin then
+    raise exception 'Seul le compte administrateur principal peut modifier ses propres rôles.';
+  end if;
+  if target_user = primary_admin and (select auth.uid()) <> primary_admin then
+    raise exception 'Seul le compte administrateur principal peut modifier ses propres rôles.';
+  end if;
+  if not exists(select 1 from public.profiles where id=target_user) then raise exception 'Membre introuvable.'; end if;
+  if exists(select 1 from unnest(coalesce(target_roles,'{}'::text[])) as selected(role_key) where not exists(select 1 from public.team_roles r where r.role_key=selected.role_key)) then
+    raise exception 'Un des rôles sélectionnés n’existe plus.';
+  end if;
+  update public.profiles set roles=(select coalesce(array_agg(distinct selected.role_key order by selected.role_key),'{}'::text[]) from unnest(coalesce(target_roles,'{}'::text[])) as selected(role_key)) where id=target_user;
+end;
+$$;
+revoke all on function public.admin_set_member_roles(uuid,text[]) from public;
+grant execute on function public.admin_set_member_roles(uuid,text[]) to authenticated;
+
+create or replace function public.guard_primary_admin_roles()
+returns trigger language plpgsql security definer set search_path = '' as $$
+declare primary_admin uuid;
+begin
+  if new.roles is distinct from old.roles or new.role is distinct from old.role or new.status is distinct from old.status then
+    select id into primary_admin from public.profiles where role='admin' order by created_at asc limit 1;
+    if old.id=primary_admin and (select auth.uid()) is distinct from old.id then
+      raise exception 'Le compte administrateur principal et ses permissions sont protégés.';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.guard_primary_admin_roles() from public, anon, authenticated;
+drop trigger if exists guard_primary_admin_roles on public.profiles;
+create trigger guard_primary_admin_roles before update of roles, role, status on public.profiles
+for each row execute function public.guard_primary_admin_roles();
+
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to authenticated;
 
@@ -285,7 +346,7 @@ begin
     select tablename, policyname
     from pg_policies
     where schemaname = 'public'
-      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','warning_disputes','tasks','task_comments','team_absences','late_notices','team_messages')
+      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','warning_disputes','sanction_disputes','tasks','task_comments','team_absences','late_notices','team_messages')
   loop
     execute format('drop policy %I on public.%I', old_policy.policyname, old_policy.tablename);
   end loop;
@@ -293,7 +354,7 @@ end;
 $$;
 
 revoke all on table public.profiles, public.reports, public.projects, public.team_roles,
-  public.report_disputes, public.member_warnings, public.warning_disputes,
+  public.report_disputes, public.member_warnings, public.warning_disputes, public.sanction_disputes,
   public.tasks, public.task_comments, public.team_absences, public.late_notices,
   public.team_messages
   from anon, authenticated;
@@ -304,6 +365,7 @@ grant select, insert, update, delete on public.team_roles to authenticated;
 grant select, insert on public.report_disputes to authenticated;
 grant select, insert, update, delete on public.member_warnings to authenticated;
 grant select, insert, update, delete on public.warning_disputes to authenticated;
+grant select, insert, update on public.sanction_disputes to authenticated;
 grant select, insert, update, delete on public.tasks to authenticated;
 grant select, insert, delete on public.task_comments to authenticated;
 grant select, insert, update on public.team_absences to authenticated;
@@ -426,6 +488,18 @@ with check (user_id = (select auth.uid()) and (select public.is_active_member())
 ));
 drop policy if exists "admin manage warning disputes" on public.warning_disputes;
 create policy "admin manage warning disputes" on public.warning_disputes for all to authenticated
+using ((select public.is_admin())) with check ((select public.is_admin()));
+drop policy if exists "members read own sanction disputes" on public.sanction_disputes;
+create policy "members read own sanction disputes" on public.sanction_disputes for select to authenticated
+using (member_id=(select auth.uid()) or (select public.is_admin()));
+drop policy if exists "members contest own sanctions" on public.sanction_disputes;
+create policy "members contest own sanctions" on public.sanction_disputes for insert to authenticated
+with check (member_id=(select auth.uid()) and exists (
+  select 1 from public.member_sanctions s join public.profiles p on p.id=s.member_id
+  where s.id=sanction_id and s.member_id=(select auth.uid()) and s.action in ('suspend','ban') and p.status in ('suspended','banned')
+) and status='open' and admin_note='' and reviewed_by is null and reviewed_at is null);
+drop policy if exists "admin review sanction disputes" on public.sanction_disputes;
+create policy "admin review sanction disputes" on public.sanction_disputes for update to authenticated
 using ((select public.is_admin())) with check ((select public.is_admin()));
 drop policy if exists "insert own report disputes" on public.report_disputes;
 create policy "insert own report disputes" on public.report_disputes for insert to authenticated
