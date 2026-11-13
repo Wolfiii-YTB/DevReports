@@ -12,6 +12,8 @@ create table if not exists public.profiles (
   status text not null default 'active' check (status in ('pending','active','rejected')),
   created_at timestamptz not null default now()
 );
+-- Present early so the setup can safely be rerun after login identifiers became required.
+alter table public.profiles add column if not exists login_identifier text;
 
 create table if not exists public.reports (
   id uuid primary key default gen_random_uuid(),
@@ -676,9 +678,15 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare generated_identifier text;
 begin
-  insert into public.profiles (id, display_name, role, status)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'display_name', 'Membre'), 'developer', 'pending');
+  generated_identifier := lower(coalesce(
+    nullif(new.raw_app_meta_data->>'login_identifier',''),
+    left(coalesce(nullif(trim(regexp_replace(lower(coalesce(nullif(new.raw_user_meta_data->>'nickname',''), nullif(new.raw_user_meta_data->>'display_name',''), split_part(new.email,'@',1), 'membre')), '[^a-z0-9]+','_','g')),''),'membre'),21)
+      ||'_'||left(replace(new.id::text,'-',''),6)
+  ));
+  insert into public.profiles (id, display_name, role, status, login_identifier)
+  values (new.id, coalesce(new.raw_user_meta_data ->> 'display_name', 'Membre'), 'developer', 'pending', generated_identifier);
   return new;
 end;
 $$;
@@ -688,8 +696,15 @@ create trigger on_auth_user_created after insert on auth.users
 for each row execute procedure public.handle_new_user();
 
 -- Répare aussi les profils absents si des comptes existaient avant le script.
-insert into public.profiles (id, display_name, role)
-select id, coalesce(raw_user_meta_data ->> 'display_name', 'Membre'), 'developer'
+insert into public.profiles (id, display_name, role, login_identifier)
+select id,
+  coalesce(raw_user_meta_data ->> 'display_name', 'Membre'),
+  'developer',
+  lower(coalesce(
+    nullif(raw_app_meta_data->>'login_identifier',''),
+    left(coalesce(nullif(trim(regexp_replace(lower(coalesce(nullif(raw_user_meta_data->>'nickname',''), nullif(raw_user_meta_data->>'display_name',''), split_part(email,'@',1), 'membre')), '[^a-z0-9]+','_','g')),''),'membre'),21)
+      ||'_'||left(replace(id::text,'-',''),6)
+  ))
 from auth.users
 on conflict (id) do nothing;
 update public.profiles p
