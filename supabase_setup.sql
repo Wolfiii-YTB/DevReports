@@ -4,6 +4,7 @@
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text not null default 'Membre',
+  nickname text not null default '',
   role text not null default 'developer' check (role in ('developer','admin')),
   roles text[] not null default array['developer']::text[],
   status text not null default 'active' check (status in ('pending','active','rejected')),
@@ -31,6 +32,7 @@ alter table public.profiles enable row level security;
 alter table public.reports enable row level security;
 alter table public.profiles add column if not exists status text not null default 'active' check (status in ('pending','active','rejected'));
 alter table public.profiles add column if not exists roles text[] not null default array['developer']::text[];
+alter table public.profiles add column if not exists nickname text not null default '';
 alter table public.reports add column if not exists author_roles text[] not null default '{}'::text[];
 alter table public.reports add column if not exists action_types text[] not null default '{}'::text[];
 alter table public.reports add column if not exists report_type text not null default 'progress';
@@ -44,6 +46,15 @@ alter table public.reports add column if not exists discord_changes text;
 
 create table if not exists public.projects(id uuid primary key default gen_random_uuid(),name text not null unique,active boolean not null default true,created_at timestamptz not null default now());
 alter table public.projects enable row level security;
+create table if not exists public.team_roles (
+  role_key text primary key check (role_key ~ '^[a-z][a-z0-9_]{1,39}$'),
+  label text not null check (length(trim(label)) between 2 and 50),
+  created_at timestamptz not null default now()
+);
+alter table public.team_roles enable row level security;
+insert into public.team_roles(role_key,label) values
+  ('developer','Développeur'),('moderator','Modérateur'),('administrator','Admin serveur'),('discord_admin','Admin Discord'),('staff','Staff'),('community','Communauté')
+on conflict (role_key) do nothing;
 create table if not exists public.report_disputes(id uuid primary key default gen_random_uuid(),report_id uuid not null references public.reports(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,reason text not null,status text not null default 'open',created_at timestamptz not null default now());
 alter table public.report_disputes enable row level security;
 
@@ -139,6 +150,22 @@ $$;
 revoke all on function public.admin_delete_user(uuid) from public;
 grant execute on function public.admin_delete_user(uuid) to authenticated;
 
+create or replace function public.admin_delete_team_role(target_role text)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if not (select public.is_admin()) then
+    raise exception 'Action réservée à un administrateur';
+  end if;
+  if not exists (select 1 from public.team_roles where role_key = target_role) then
+    raise exception 'Rôle introuvable';
+  end if;
+  update public.profiles set roles = array_remove(roles, target_role);
+  delete from public.team_roles where role_key = target_role;
+end;
+$$;
+revoke all on function public.admin_delete_team_role(text) from public;
+grant execute on function public.admin_delete_team_role(text) to authenticated;
+
 revoke all on function public.is_admin() from public;
 grant execute on function public.is_admin() to authenticated;
 -- Remove toute policy résiduelle sur les tables applicatives avant de reconstruire
@@ -150,20 +177,21 @@ begin
     select tablename, policyname
     from pg_policies
     where schemaname = 'public'
-      and tablename in ('profiles','reports','projects','report_disputes','member_warnings','warning_disputes','tasks','task_comments')
+      and tablename in ('profiles','reports','projects','team_roles','report_disputes','member_warnings','warning_disputes','tasks','task_comments')
   loop
     execute format('drop policy %I on public.%I', old_policy.policyname, old_policy.tablename);
   end loop;
 end;
 $$;
 
-revoke all on table public.profiles, public.reports, public.projects,
+revoke all on table public.profiles, public.reports, public.projects, public.team_roles,
   public.report_disputes, public.member_warnings, public.warning_disputes,
   public.tasks, public.task_comments
   from anon, authenticated;
 grant select, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.reports to authenticated;
 grant select, insert, update, delete on public.projects to authenticated;
+grant select, insert, update, delete on public.team_roles to authenticated;
 grant select, insert on public.report_disputes to authenticated;
 grant select, insert, update, delete on public.member_warnings to authenticated;
 grant select, insert, update, delete on public.warning_disputes to authenticated;
@@ -189,6 +217,10 @@ returns boolean language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function public.is_active_member() from public;
 grant execute on function public.is_active_member() to authenticated;
+drop policy if exists "active members read team roles" on public.team_roles;
+create policy "active members read team roles" on public.team_roles for select to authenticated using ((select public.is_active_member()));
+drop policy if exists "admins manage team roles" on public.team_roles;
+create policy "admins manage team roles" on public.team_roles for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
 create or replace function public.guard_task_write()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
@@ -275,6 +307,9 @@ insert into public.profiles (id, display_name, role)
 select id, coalesce(raw_user_meta_data ->> 'display_name', 'Membre'), 'developer'
 from auth.users
 on conflict (id) do nothing;
+update public.profiles p
+set nickname = coalesce(nullif(u.raw_user_meta_data ->> 'nickname', ''), '')
+from auth.users u where p.id = u.id and p.nickname = '';
 
 -- Le compte administrateur principal est le premier administrateur créé.
 update public.profiles set display_name = 'Laélien'

@@ -1,0 +1,9 @@
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+
+# Local Supabase CLI state and dependencies
+supabase/.temp/
+supabase/.branches/
+node_modules/
