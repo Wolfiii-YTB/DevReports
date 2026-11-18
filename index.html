@@ -8,7 +8,7 @@
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://bylwvlxxvgumvqgpwgod.supabase.co wss://bylwvlxxvgumvqgpwgod.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <link rel="stylesheet" href="./styles.css?v=20261113-21">
+  <link rel="stylesheet" href="./styles.css?v=20261118-23">
 </head>
 <body>
 <a class="skip-link" id="skipLink" href="#authView">Aller au contenu principal</a>
@@ -87,7 +87,7 @@
       </div>
     </div></div>
     <section id="reportsPage" class="hidden"><div class="toolbar"><h2 id="reportsHeading">Mes rapports</h2><input id="searchReports" placeholder="Rechercher un rapport…"><select id="personFilter" class="hidden"><option value="">Toute l’équipe</option></select></div><div id="reportsList"></div></section>
-    <section id="tasksPage" class="hidden"><div class="tasks-toolbar"><div><p class="eyebrow">Organisation d’équipe</p><h2>Tableau des tâches</h2><p class="sub">Planifie, attribue et suis le travail de l’équipe au même endroit.</p></div><div class="task-toolbar-actions"><button class="btn secondary" id="myTasksBtn" aria-pressed="false">Mes tâches</button><button class="btn" id="newTaskBtn">＋ Nouvelle tâche</button></div></div><div class="tasks-filters"><input id="taskSearch" type="search" placeholder="Rechercher une tâche…"><select id="taskAssigneeFilter"><option value="">Toute l’équipe</option></select><select id="taskProjectFilter"><option value="">Tous les projets</option></select><select id="taskPriorityFilter"><option value="">Toutes les priorités</option><option value="urgent">Urgente</option><option value="high">Haute</option><option value="normal">Normale</option><option value="low">Basse</option></select></div><div id="taskBoard" class="task-board" aria-label="Tableau kanban"></div></section>
+    <section id="tasksPage" class="hidden"><div class="tasks-toolbar"><div><p class="eyebrow">DevDocs · Organisation d’équipe</p><h2>Tableau des tâches</h2><p class="sub">Les membres envoient leur travail en vérification ; l’administration le valide ou demande une reprise avec commentaire.</p></div><div class="task-toolbar-actions"><button class="btn secondary" id="myTasksBtn" aria-pressed="false">Mes tâches</button><button class="btn admin-only hidden" id="newTaskBtn">＋ Nouvelle tâche</button></div></div><div class="tasks-filters"><input id="taskSearch" type="search" placeholder="Rechercher une tâche…"><select id="taskAssigneeFilter"><option value="">Toute l’équipe</option></select><select id="taskProjectFilter"><option value="">Tous les projets</option></select><select id="taskPriorityFilter"><option value="">Toutes les priorités</option><option value="urgent">Urgente</option><option value="high">Haute</option><option value="normal">Normale</option><option value="low">Basse</option></select></div><div id="taskBoard" class="task-board" aria-label="Tableau DevDocs"></div></section>
     <section id="presencePage" class="hidden">
       <div class="page-intro"><p class="eyebrow">Organisation d’équipe</p><h2>Absences et retards</h2><p class="sub">Préviens l’équipe à l’avance et retrouve le suivi de tes demandes au même endroit.</p></div>
       <div class="presence-forms">
@@ -130,6 +130,6 @@
 <dialog id="memberHistoryDialog" class="app-dialog member-history-dialog" aria-labelledby="memberHistoryTitle"></dialog>
 <dialog id="passwordRecoveryDialog" class="app-dialog member-dialog" aria-labelledby="passwordRecoveryTitle"></dialog>
 
-<script src="./app.js?v=20261113-34" defer></script>
+<script src="./app.js?v=20261118-35" defer></script>
 </body>
 </html>
